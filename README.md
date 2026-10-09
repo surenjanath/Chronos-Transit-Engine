@@ -132,10 +132,14 @@ The second 45 stars were run on the final code; the first 45 on the code as it s
 3.78% (limit 5%), log integrity 100%. **Golden targets**: 11 of 12 assertions hold, including all six TRAPPIST-1
 planets b–g; the one miss is listed under [Known limits](#known-limits).
 
-**Has it found a planet NASA does not have?** No. Every transit signal it reported on the 49 real stars analysed here
-is already in NASA's catalogues. One weak unlisted signal (KIC 4149450, 28.35 d, S/N 7.6, the minimum for detection)
-is far more likely noise than a planet. An unmatched signal would in any case be a *candidate*: confirming a planet
-takes independent follow-up.
+**Has it found a planet NASA does not have?** No confirmed new planet. Across the 96 real stars analysed:
+every signal it sent to the vetting queue is a NASA-confirmed planet except KOI-143.01 (see Known limits). One star
+it called a planet against its training label (TCE 6851425-1, labelled a false positive in the 2015 DR24 set) is
+listed today as the confirmed planet Kepler-477 b. It also reported six further signals on five stars that no NASA
+table lists. Four of those stars are known eclipsing binaries or false positives, where leftover stellar signal is
+the likely cause. The fifth is the confirmed host Kepler-1772: a 28.35-day, 47 ppm dip at S/N 7.6, barely above the
+detection minimum. That one is a candidate worth a second look, nothing more: confirming a planet takes
+independent follow-up.
 
 ## Real data
 
@@ -281,7 +285,7 @@ residuals are white) and `remove_periodic_variability` (divide out a non-transit
 - **Kepler-8 b sits in manual review at 0.899, a hair under the 0.90 queue threshold.** Among real Kepler signals
   deeper than 0.5% the sample holds 159 false positives and 22 planets, so a deep, high-impact transit is
   ambiguous on shape alone (the network gives it 0.25). Review is the calibrated answer, not a bug.
-- **KOI-143.01 reaches the vetting queue although the archive lists it as a false positive** (one of the two in the benchmark; the other is TCE 6851425-1). The archive rejects
+- **KOI-143.01 reaches the vetting queue although the archive lists it as a false positive**. (The benchmark's other "false positive in the queue", TCE 6851425-1, carries an outdated label: the engine scored it 0.948 planet, and NASA's current catalogue lists it as the confirmed planet Kepler-477 b.) The archive rejects
   it for a secondary eclipse. In all seventeen quarters this engine measures none (−0.9σ at phase 0.5, no
   significant dip at any other phase) and equal odd and even depths (0.2σ), so the photometry it has cannot
   reject it.
