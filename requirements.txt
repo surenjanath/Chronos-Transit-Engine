@@ -1,0 +1,12 @@
+Django>=5.2
+numpy>=2.0
+scipy>=1.13
+torch>=2.4
+pyarrow>=16
+lightkurve>=2.5
+astroquery>=0.4.7
+astropy>=6.0
+psycopg[binary]>=3.2
+pytest>=8.0
+pytest-django>=4.9
+batman-package>=2.5

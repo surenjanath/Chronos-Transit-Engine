@@ -1,0 +1,31 @@
+{% extends "layout.html" %}
+{% load cte %}
+
+{% block page %}
+      <section class="sheet">
+        <div class="sheet-head">
+          <h1 class="sheet-title">Audit log <span class="quiet">· Structured JSONL telemetry for every mathematical stage ·</span></h1>
+          <div class="sheet-tools"><a href="{% url 'export_logs' %}{% qs page='' %}">Download JSONL</a></div>
+        </div>
+        <form class="modebar" method="get">
+          <div class="seg" role="group" aria-label="Level">
+            {% for value, label in level_tabs %}<a href="{% qs level=value page='' %}" class="{% if f.level == value %}on{% endif %}">{{ label }}</a>{% endfor %}
+          </div>
+          <span class="quiet">{{ logs.paginator.count }} matching · {{ levels.INFO|default:0 }} info · {{ levels.WARNING|default:0 }} warning · {{ levels.ERROR|default:0 }} error overall</span>
+          <span class="spacer"></span>
+          {% if f.level %}<input type="hidden" name="level" value="{{ f.level }}">{% endif %}
+          {% if f.run %}<input type="hidden" name="run" value="{{ f.run }}">{% endif %}
+          <select name="stage" aria-label="Stage" onchange="this.form.submit()">
+            <option value="">All stages</option>
+            {% for s in stages %}<option value="{{ s }}"{% if f.stage == s %} selected{% endif %}>{{ s|lower_words }}</option>{% endfor %}
+          </select>
+          <input type="search" name="q" value="{{ f.q }}" placeholder="Search message, stage or run id" aria-label="Search logs" style="max-width:260px">
+          <button type="submit" class="text">Search</button>
+          {% if f.q or f.stage or f.level or f.run %}<a class="text" href="{% url 'logs' %}">Clear</a>{% endif %}
+        </form>
+        {% if logs %}
+          {% include "partials/_log_table.html" with show_run=True %}
+          {% include "partials/_pagination.html" with items=logs prev_label="Newer" next_label="Older" %}
+        {% else %}<p class="empty">No records match.</p>{% endif %}
+      </section>
+{% endblock %}

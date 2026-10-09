@@ -1,0 +1,121 @@
+{% extends "layout.html" %}
+{% load static cte %}
+
+{% block page %}
+      <section class="sheet">
+        <div class="sheet-head">
+          <h1 class="sheet-title">Map <span class="quiet">· Where the known planets are, and how far that is from Earth ·</span></h1>
+          <div class="sheet-tools">
+            {% if catalogue %}<span class="quiet">{{ catalogue.n_planets|num:0 }} planets · {{ catalogue.n_systems|num:0 }} systems · archive copy from {{ catalogue.as_of|ago }}</span>{% endif %}
+            <form method="post" action="{% url 'map_refresh' %}" class="inline">{% csrf_token %}<button type="submit" class="text">Refresh from archive</button></form>
+          </div>
+        </div>
+        {% if not catalogue %}
+        <p class="empty">The NASA Exoplanet Archive could not be reached and there is no saved copy of the catalogue yet, so no stars can be placed. The Solar System below is still drawn to scale. Use “Refresh from archive” to try again.</p>
+        {% endif %}
+        <div class="modebar">
+          <div class="seg" id="mapViews" role="group" aria-label="Viewpoint">
+            <button type="button" data-view="top" class="on" title="Looking down on the plane of the Milky Way">Galaxy from above</button>
+            <button type="button" data-view="side" title="Looking along the plane of the Milky Way">Galaxy edge-on</button>
+            <button type="button" data-view="sky" title="Where to look in the sky">Sky from Earth</button>
+          </div>
+          <div class="map-search">
+            <input type="search" id="mapSearch" placeholder="Find a star or planet" autocomplete="off" aria-label="Find a star or planet">
+            <ul id="mapSuggest" class="menu" hidden></ul>
+          </div>
+          <span class="spacer"></span>
+          <span class="map-presets" id="mapPresets">
+            <span class="quiet">Go to</span>
+            <button type="button" class="text" data-preset="earth">Earth’s orbit</button>
+            <button type="button" class="text" data-preset="solar">Solar System</button>
+            <button type="button" class="text" data-preset="voyager">Voyager 1</button>
+            <button type="button" class="text" data-preset="nearest">Nearest stars</button>
+            <button type="button" class="text" data-preset="kepler">Kepler’s field</button>
+            <button type="button" class="text" data-preset="galaxy">Whole Galaxy</button>
+          </span>
+        </div>
+        <div class="map-wrap">
+          <div>
+            <div id="map" class="map" tabindex="0" aria-label="Map of planetary systems. Drag to move, scroll to zoom, select a star for details.">
+              <canvas></canvas>
+              <div class="map-zoom"><button type="button" data-zoom="in" aria-label="Zoom in">+</button><button type="button" data-zoom="out" aria-label="Zoom out">−</button><button type="button" data-zoom="home" aria-label="Back to the Sun" title="Back to the Sun">◎</button></div>
+              <div class="map-scale" id="mapScale"><i></i><span></span></div>
+              <div class="plot-tip" id="mapTip" hidden></div>
+              <div class="map-loading" id="mapLoading">Loading the catalogue…</div>
+            </div>
+            <p class="legend-note" id="mapReadout">&nbsp;</p>
+            <div class="plot-legend" style="margin-top:10px">
+              <span><i class="pt"></i>Star with confirmed planets</span>
+              <span><i class="pt" style="background:var(--gap)"></i>Analysed by this engine</span>
+              <span><i class="pt" style="background:var(--ok)"></i>The Sun</span>
+              <span><i style="border-top-color:var(--rule)"></i>True distance from the Sun</span>
+            </div>
+            <div class="filters" id="mapFilters" style="margin-top:12px">
+              <span class="quiet" style="font-size:13px">Show</span>
+              <div class="choice" style="margin:0">
+                <label><input type="radio" name="mapMethod" value="" checked>All</label>
+                <label><input type="radio" name="mapMethod" value="Transit">Transit</label>
+                <label><input type="radio" name="mapMethod" value="Radial Velocity">Radial velocity</label>
+                <label><input type="radio" name="mapMethod" value="Microlensing">Microlensing</label>
+                <label><input type="radio" name="mapMethod" value="Imaging">Imaging</label>
+                <label><input type="radio" name="mapMethod" value="other">Other methods</label>
+              </div>
+              <div class="choice" style="margin:0">
+                <label><input type="checkbox" id="mapSmall">Earth-sized planets (under 1.6 R⊕)</label>
+                <label><input type="checkbox" id="mapTemperate">Earth-like starlight (0.25–1.75 S⊕)</label>
+                <label><input type="checkbox" id="mapNaked">Host visible to the naked eye</label>
+              </div>
+              <span class="quiet num" id="mapCount" style="font-size:13px"></span>
+            </div>
+          </div>
+          <aside id="mapPanel" class="map-panel" aria-live="polite"></aside>
+        </div>
+        <p class="legend-note" style="max-width:96ch">Positions come from each star’s measured sky position and distance in the NASA Exoplanet Archive{% if catalogue and catalogue.unplaced_planets %}; {{ catalogue.unplaced_planets }} planet{{ catalogue.unplaced_planets|pluralize }} with no measured distance {{ catalogue.unplaced_planets|pluralize:"is,are" }} left off rather than guessed{% endif %}. Rings are true distances from the Sun, so a star above or below the drawing plane appears inside its ring. Orbits are drawn to scale in size and face-on: their real orientation, and where each planet is along its orbit today, are not in the catalogue and are not drawn. The Oort cloud and the edge of the Galaxy’s disc are approximate.</p>
+      </section>
+
+      <section class="sheet">
+        <h2 class="sheet-title">Analysed by this engine <span class="quiet">· {{ placed|length }} placed on the map ·</span></h2>
+        {% if placed %}
+        <table class="wide">
+          <thead><tr><th>Target</th><th>Catalogued as</th><th class="r">Distance</th><th class="r">Known planets</th><th class="r">P(planet)</th><th>Latest result</th><th></th></tr></thead>
+          <tbody>{% for t in placed %}
+            <tr>
+              <td class="who"><a href="{{ t.url }}">{{ t.name }}</a><span class="sub">{{ t.runs }} run{{ t.runs|pluralize }}</span></td>
+              <td>{{ t.host }}</td>
+              <td class="r num">{{ t.distance_ly|num:1 }} ly</td><td class="r num">{{ t.planets }}</td>
+              <td class="r num fit">{% if t.p_planet != None %}{{ t.p_planet|pct }}{% else %}–{% endif %}</td>
+              <td>{% if t.run_url %}<a href="{{ t.run_url }}">{{ t.disposition|disposition_label }}</a>{% else %}<span class="quiet">no completed run</span>{% endif %}</td>
+              <td class="r"><button type="button" class="sm" data-fly="{{ t.host }}">Show on map</button></td>
+            </tr>{% endfor %}
+          </tbody>
+        </table>
+        {% else %}<p class="empty">None of the analysed stars is in the archive’s list of confirmed planet hosts yet.</p>{% endif %}
+        {% if unplaced %}<p class="legend-note">Not placed: {% for t in unplaced %}<a href="{{ t.url }}">{{ t.name }}</a>{% if not forloop.last %}, {% endif %}{% endfor %}. The archive lists no confirmed planet, and so no distance, under {{ unplaced|length|pluralize:"this name,these names" }}.</p>{% endif %}
+      </section>
+
+      <section class="sheet">
+        <h2 class="sheet-title">The nearest planetary systems <span class="quiet">· and what “near” means ·</span></h2>
+        {% if nearest %}
+        <table class="wide">
+          <thead><tr><th>Star</th><th class="r">Distance</th><th class="r">Planets</th><th class="r">Light takes</th><th class="r">Voyager 1 would take</th><th class="r">An airliner would take</th><th></th></tr></thead>
+          <tbody>{% for h in nearest %}
+            <tr>
+              <td class="who">{{ h.name }}{% if h.vmag != None and h.vmag <= 6 %}<span class="sub">visible to the naked eye</span>{% endif %}</td>
+              <td class="r num">{{ h.d|num:2 }} ly</td><td class="r num">{{ h.n }}</td>
+              <td class="r num">{{ h.d|num:1 }} years</td>
+              <td class="r num">{{ h.travel.voyager1_years|num:0 }} years</td>
+              <td class="r num">{{ h.travel.jet_years|bigyears }}</td>
+              <td class="r"><button type="button" class="sm" data-fly="{{ h.name }}">Show on map</button></td>
+            </tr>{% endfor %}
+          </tbody>
+        </table>
+        <p class="legend-note">Voyager 1 left Earth in 1977 and is the most distant thing people have made: about {{ voyager_au|num:0 }} astronomical units away, which light covers in under a day. It travels 3.6 astronomical units a year.</p>
+        {% endif %}
+      </section>
+{% endblock %}
+
+{% block page_js %}
+{{ ctx|json_script:"mapContext" }}
+<script src="{% static 'js/map.js' %}?v=1"></script>
+<script>CTEMap(document.getElementById('map'), jsonData('mapContext'));</script>
+{% endblock %}

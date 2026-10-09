@@ -1,0 +1,49 @@
+{% extends "layout.html" %}
+
+{% block page %}
+      <section class="sheet">
+        <h1 class="sheet-title">Method <span class="quiet">· From photometry to vetted candidate ·</span></h1>
+        <div class="cols">
+          <div>
+            <div class="block"><h3>1 · Normalization and outlier rejection</h3>
+              <div class="formula">\[ \tilde{F}(t_i) = \frac{F_{\mathrm{raw}}(t_i)}{\operatorname{median}\!\left(F_{\mathrm{raw}}\right)} \]
+                \[ \text{reject } t_i \text{ when}\quad \left| \tilde{F}(t_i) - \mu_{\mathrm{roll}}(t_i) \right| > k\,\sigma_{\mathrm{roll}}(t_i) \]</div>
+              <p class="co">\(k = 5.0\); \(\mu_{\mathrm{roll}}\) and \(\sigma_{\mathrm{roll}}\) over a rolling window of 101 cadences, repeated until nothing more is rejected.</p></div>
+            <div class="block"><h3>2 · Savitzky–Golay detrending</h3>
+              <div class="formula">\[ F_{\mathrm{trend}}(t_i) = \sum_{j=-m}^{m} c_j\, \tilde{F}(t_{i+j}), \qquad F_{\mathrm{flat}}(t_i) = \frac{\tilde{F}(t_i)}{F_{\mathrm{trend}}(t_i)} \]</div>
+              <p class="co">Local polynomials of degree \(p = 3\) over \(2m+1\) cadences. Run twice: after the first period search the transit is masked so the trend cannot absorb its depth.</p></div>
+            <div class="block"><h3>3 · Box Least Squares</h3>
+              <div class="formula">\[ \mathrm{SR}(P, q, t_0) = \left[ \frac{s^2}{r\,(1-r)} \right]^{1/2}, \qquad r = \sum_{i \in \mathrm{transit}} w_i, \quad s = \sum_{i \in \mathrm{transit}} w_i \left( F_{\mathrm{flat}}(t_i) - 1 \right), \quad w_i = \sigma_i^{-2} \]
+                \[ P_{\mathrm{best}},\, t_0,\, q_{\mathrm{best}} = \underset{P,\,q,\,t_0}{\arg\max}\ \mathrm{SR}(P, q, t_0), \qquad P \in [0.5, 30]\ \mathrm{d}, \quad q = \frac{T_{\mathrm{dur}}}{P} \in [0.01, 0.1] \]</div>
+              <p class="co">The peak is refined by least squares against the fitted transit shape to reach \(|\Delta P| / P &lt; 10^{-4}\).</p></div>
+            <div class="block"><h3>4 · Physical parameters</h3>
+              <div class="formula">\[ \delta = \frac{\Delta F}{F} \approx \left( \frac{R_p}{R_\star} \right)^{2}, \qquad R_p = R_\star \sqrt{\delta}, \qquad R_p\,[R_\oplus] = R_p\,[R_\odot] \times 109.076 \]
+                \[ a^3 = \frac{G M_\star}{4\pi^2}\, P^2 \quad\Longrightarrow\quad a\,[\mathrm{AU}] = \left( \frac{M_\star}{M_\odot} \right)^{1/3} \left( \frac{P\,[\mathrm{d}]}{365.256} \right)^{2/3} \]
+                \[ T_{\mathrm{dur}} = \frac{P}{\pi} \arcsin\!\left( \frac{R_\star}{a} \sqrt{\frac{(1+k)^2 - b^2}{1 - \cos^2 i}} \right), \qquad k = \frac{R_p}{R_\star}, \quad b = \frac{a \cos i}{R_\star} \]
+                \[ T_{\mathrm{eq}} = T_\star \left( \frac{R_\star}{2a} \right)^{1/2} \left( 1 - A_B \right)^{1/4} \]</div>
+              <p class="co">Bond albedo \(A_B = 0.3\) by default. A limb-darkened fit then refines \(R_p/R_\star\), \(a/R_\star\) and \(b\) with \(1\sigma\) errors, because limb darkening makes mid-transit deeper than \((R_p/R_\star)^2\).</p></div>
+            <div class="block"><h3>5 · Phase folding and classification</h3>
+              <div class="formula">\[ \phi_i = \frac{\left( (t_i - t_0 + P/2) \bmod P \right) - P/2}{P} \in [-0.5,\, 0.5) \]</div>
+              <p>The folded curve is binned into a 201-bin global view over \(\phi \in [-0.5, 0.5]\) and a 61-bin local view over \(\phi \in [-2.5q,\, 2.5q]\). A dual-branch 1D-CNN returns \([P_{\mathrm{planet}}, P_{\mathrm{binary}}, P_{\mathrm{noise}}]\); a second stage weighs that with the vetting diagnostics.</p></div>
+            <div class="block"><h3>6 · Vetting and significance</h3>
+              <div class="formula">\[ \mathrm{S/N} = \frac{\delta}{\sigma} \sqrt{N_{\mathrm{in}}}, \qquad \Delta_{\mathrm{odd/even}} = \frac{\left| \delta_{\mathrm{odd}} - \delta_{\mathrm{even}} \right|}{\sqrt{\sigma_{\mathrm{odd}}^2 + \sigma_{\mathrm{even}}^2}}, \qquad s_{\mathrm{source}} \approx \frac{\Delta \mathrm{centroid}}{\delta} \]
+                \[ \rho_\star = \frac{3\pi}{G P^2} \left( \frac{a}{R_\star} \right)^{3} \]</div>
+              <p class="co">A detection needs \(\mathrm{S/N} \ge 7.1\). The stellar density implied by the transit is compared with the catalogued star.</p></div>
+            <div class="block"><h3>7 · Audit and archive</h3>
+              <p>Every stage emits a JSONL record with its inputs and outputs. Records are schema-validated and SHA-256 hash chained; an invalid record terminates the run. Time series are archived as Parquet.</p></div>
+          </div>
+          <div>
+            <h2 class="sheet-title">Dispositions</h2>
+            <table><tbody>
+              {% for label, text, key in dispositions %}<tr><td style="white-space:nowrap;font-weight:500">{{ label }}</td><td>{{ text }}</td></tr>{% endfor %}
+            </tbody></table>
+            <h2 class="sheet-title" style="margin-top:34px">Diagnostic flags</h2>
+            <table><tbody>
+              {% for code, text in flags %}<tr><td class="mono" style="white-space:nowrap">{{ code }}</td><td>{{ text }}</td></tr>{% endfor %}
+            </tbody></table>
+            <h2 class="sheet-title" style="margin-top:34px">Plots</h2>
+            <p class="co">Drag across a plot to zoom; double-click to reset. Hover for exact values.</p>
+          </div>
+        </div>
+      </section>
+{% endblock %}

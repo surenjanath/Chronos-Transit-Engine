@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% load static %}
+{% comment %}
+  The application shell shared by every page: header + nav, status banners, the page slot, the dock.
+  A page extends this and fills {% block page %}, optionally {% block rail %} and {% block page_js %}.
+{% endcomment %}
+
+{% block body %}
+<div class="station">
+  {% include "partials/_header.html" %}
+
+  <div id="alerts">
+    {% for message in messages %}<div class="banner {{ message.tags }}" role="status">{{ message }}</div>{% endfor %}
+    {% if not shell.model_active and not shell.training %}<div class="banner error">No active CNN checkpoint. <a href="{% url 'validation' %}">Train the classifier</a> before starting a run.</div>{% endif %}
+  </div>
+
+  <div class="frame">
+    {% block rail %}{% endblock %}
+    <div class="sheets">
+      {% block page %}{% endblock %}
+    </div>
+  </div>
+
+  {% include "partials/_dock.html" %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{% static 'vendor/katex/katex.min.js' %}"></script>
+<script src="{% static 'vendor/katex/auto-render.min.js' %}"></script>
+<script>
+  // typeset every \( inline \) and \[ display \] expression; pages call renderMath(el) after inserting content
+  window.renderMath=function(el){ renderMathInElement(el||document.body,{delimiters:[{left:"\\[",right:"\\]",display:true},{left:"\\(",right:"\\)",display:false}],throwOnError:false}); };
+  renderMath();
+</script>
+<script src="{% static 'js/plot.js' %}?v=5"></script>
+<script src="{% static 'js/core.js' %}?v=7"></script>
+{% block page_js %}{% endblock %}
+{% endblock %}

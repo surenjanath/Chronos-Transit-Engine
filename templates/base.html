@@ -1,0 +1,19 @@
+{% load static %}<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}{{ page_title|default:"Chronos" }} · Chronos Transit Engine{% endblock %}</title>
+<link rel="icon" href="{% static 'img/favicon.svg' %}" type="image/svg+xml">
+<script>try{var t=localStorage.getItem('cte-theme');if(t)document.documentElement.setAttribute('data-theme',t);localStorage.removeItem('cte-skin')}catch(e){}</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{% static 'vendor/katex/katex.min.css' %}">
+<link rel="stylesheet" href="{% static 'css/main.css' %}?v=6">
+</head>
+<body data-page="{{ page }}" data-live="{% url 'live' %}"{% block body_attrs %}{% endblock %}>
+{% block body %}{% endblock %}
+{% block scripts %}{% endblock %}
+</body>
+</html>

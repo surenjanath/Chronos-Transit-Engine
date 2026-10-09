@@ -1,0 +1,9 @@
+    <aside class="rail" id="warnRail">
+      <div id="railLabel">{{ rail_label|default:"Vetting<br>queue"|safe }}</div>
+      <a href="{% url 'vetting' %}" title="Open the vetting queue">
+        <svg class="tri" viewBox="0 0 40 36" aria-hidden="true">
+          <path d="M20 2 L38 34 H2 Z" fill="currentColor"/>
+          <text x="20" y="29" text-anchor="middle" fill="var(--canvas)" font-size="15" font-family="Instrument Sans, sans-serif">{{ rail_count }}</text>
+        </svg>
+      </a>
+    </aside>

@@ -1,0 +1,41 @@
+{% extends "layout.html" %}
+{% load cte %}
+{% block body_attrs %} data-autoreload{% endblock %}
+
+{% block page %}
+      <section class="sheet">
+        <h1 class="sheet-title">Targets <span class="quiet">· Host stars ·</span></h1>
+        <form class="modebar" method="get">
+          <div class="seg" role="group" aria-label="Mission">
+            <a href="{% qs mission='' %}" class="{% if not mission %}on{% endif %}">All</a>
+            {% for m in missions %}<a href="{% qs mission=m %}" class="{% if mission == m %}on{% endif %}">{{ m }}</a>{% endfor %}
+          </div>
+          <span class="quiet">{{ targets|length }} target{{ targets|length|pluralize }}</span>
+          <span class="spacer"></span>
+          {% if mission %}<input type="hidden" name="mission" value="{{ mission }}">{% endif %}
+          <input type="search" name="q" value="{{ q }}" placeholder="Search name or TIC id" aria-label="Search targets" style="max-width:260px">
+          <button type="submit" class="text">Search</button>
+        </form>
+        {% if targets %}
+        <table class="wide">
+          <thead><tr><th>Target</th><th>Mission</th><th class="r">\(T_{\mathrm{eff}}\)</th><th class="r">\(R_\star\)</th><th class="r">\(M_\star\)</th><th class="r">V mag</th><th class="r">Runs</th><th class="r">Latest period</th><th class="r">Latest radius</th><th>Latest disposition</th></tr></thead>
+          <tbody>
+            {% for t in targets %}
+            <tr class="rowlink" data-href="{% url 'target' t.id %}">
+              <td class="who"><a href="{% url 'target' t.id %}">{{ t.display }}</a><span class="sub">{% if t.alias %}{{ t.name }}{% else %}added {{ t.created_at|date:"M j, H:i" }}{% endif %}</span></td>
+              <td>{{ t.mission }}</td>
+              <td class="r num">{% if t.t_eff_k %}{{ t.t_eff_k|num:0 }} K{% else %}—{% endif %}</td>
+              <td class="r num">{% if t.r_star_solar %}{{ t.r_star_solar|num:2 }} R☉{% else %}—{% endif %}</td>
+              <td class="r num">{% if t.m_star_solar %}{{ t.m_star_solar|num:2 }} M☉{% else %}—{% endif %}</td>
+              <td class="r num">{{ t.v_mag|num:2 }}</td>
+              <td class="r num">{{ t.n_runs }}</td>
+              <td class="r num">{% if t.latest %}{{ t.latest.period_days|num:4 }} d{% else %}—{% endif %}</td>
+              <td class="r num">{% if t.latest %}{{ t.latest.radius_earth|num:2 }} R⊕{% else %}—{% endif %}</td>
+              <td>{% if t.latest %}{% pill t.latest %}{% else %}—{% endif %}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}<p class="empty">No targets match. <a href="{% url 'new' %}">Start an analysis</a> to add one.</p>{% endif %}
+      </section>
+{% endblock %}

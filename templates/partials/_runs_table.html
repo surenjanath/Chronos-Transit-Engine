@@ -1,0 +1,24 @@
+{% load cte %}
+        <table class="wide">
+          <thead><tr>
+            <th>Target</th><th>Started</th><th class="r">Period</th><th class="r">Depth</th><th class="r">Radius</th>
+            <th class="r">P(planet)</th><th class="r">Flags</th><th>Status</th><th>Disposition</th>{% if not hide_vetting %}<th>Vetting</th>{% endif %}
+          </tr></thead>
+          <tbody>
+            {% for r in runs %}
+            <tr class="rowlink" data-href="{% url 'run' r.id %}">
+              <td class="who"><a href="{% url 'run' r.id %}">{{ r.target.display }}</a>
+                <span class="sub">{% if r.target.alias %}{{ r.target.name }} · {% endif %}{{ r.target.mission }}{% if r.sector != None %} · S{{ r.sector }}{% endif %} · <span class="mono">{{ r.id }}</span></span></td>
+              <td class="num">{{ r.created_at|date:"M j, H:i" }}<span class="sub">{{ r.duration_s|dur }}</span></td>
+              <td class="r num">{% if r.period_days != None %}{{ r.period_days|num:4 }} d{% else %}—{% endif %}</td>
+              <td class="r num">{% if r.depth_ppm != None %}{{ r.depth_ppm|num:0 }} ppm{% else %}—{% endif %}</td>
+              <td class="r num">{% if r.radius_earth != None %}{{ r.radius_earth|num:2 }} R⊕{% else %}—{% endif %}</td>
+              <td class="r num fit">{% if r.p_planet != None %}{{ r.p_planet|pct }}{% else %}—{% endif %}</td>
+              <td class="r num">{% if r.status == "completed" %}{% if r.n_flags %}<span class="tag bad">{{ r.n_flags }}</span>{% else %}0{% endif %}{% else %}—{% endif %}</td>
+              <td>{% if r.status == "completed" %}Completed{% elif r.status == "failed" %}<span class="danger">Failed</span>{% elif r.status == "queued" %}<span class="quiet">Queued</span>{% else %}<span class="pill live">{{ r.stage_label }} · {{ r.percent }}%</span>{% endif %}</td>
+              <td>{% pill r %}</td>
+              {% if not hide_vetting %}<td>{% if r.status == "completed" %}{% if r.vetting_status == "confirmed" %}<b>Confirmed</b>{% elif r.vetting_status == "false_positive" %}<span class="danger">False positive</span>{% else %}<span class="quiet">Pending</span>{% endif %}{% else %}—{% endif %}</td>{% endif %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>

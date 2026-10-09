@@ -1,0 +1,167 @@
+{% extends "layout.html" %}
+{% load static cte %}
+{% block body_attrs %} data-autoreload{% endblock %}
+
+{% block page %}
+      <section class="sheet">
+        <h1 class="sheet-title">Benchmark <span class="quiet">· Real stars with known answers ·</span></h1>
+        <p class="lede">Kepler Threshold Crossing Events (DR24, Q1–Q17) labelled by the Kepler Science Office: PC planet candidates, AFP astrophysical false positives, NTP non-transiting phenomena. This is the ground truth AstroNet was scored on. A fifth of the stars are held out and never used for training.</p>
+        {% if dataset %}
+        <div class="figures small">
+          <div><div class="fig-label">Real stars</div><div class="fig-value">{{ dataset.stars }}</div><div class="fig-sub">Kepler quarters {{ dataset.quarters|join:", " }}</div></div>
+          <div><div class="fig-label">Used for training</div><div class="fig-value">{{ dataset.train }}</div></div>
+          <div><div class="fig-label">Held out</div><div class="fig-value">{{ dataset.test }}</div></div>
+          {% for c in dataset.classes %}<div><div class="fig-label">{{ labels|get:c.name }}</div><div class="fig-value">{{ c.train|add:c.test }}</div><div class="fig-sub">{{ c.test }} held out</div></div>{% endfor %}
+        </div>
+        <p class="co">{{ dataset.source }}. Planets and binaries are included only when their signal is detectable in the quarters supplied: expected S/N \(\ge\) {{ dataset.min_expected_snr|num:0 }}, which is a catalogue S/N \(\ge\) {{ dataset.min_catalogue_snr|num:0 }} over the four-year mission. A star's split is fixed by its KIC number.</p>
+        {% else %}
+        <p class="empty">The real dataset has not been built. Run <span class="mono">python manage.py build_kepler_dataset</span>, then retrain on the Validation page.</p>
+        {% endif %}
+      </section>
+
+      {% if real %}
+      <section class="sheet">
+        <h2 class="sheet-title">Classifier on held-out real stars <span class="quiet">· Folded on the catalogued ephemeris, as AstroNet was scored · targets AUC ≥ 0.96, PR-AUC ≥ 0.88 ·</span></h2>
+        <div class="split">
+          <div>
+            <div class="hero">
+              <i class="hero-bar" aria-hidden="true"></i>
+              <div class="hero-num">{{ real.auc_planet|num:3 }}</div>
+              <div class="hero-aside"><span>planet-vs-rest AUC</span><span>PR-AUC <b>{{ real.pr_auc_planet|num:3 }}</b></span><span><b>{{ real.n_test }}</b> stars</span></div>
+            </div>
+            <p class="warn-line">{{ real.accuracy|pct }} three-class accuracy on real stars.
+              {% if real.baseline and not real.baseline.trained_on_real %}<span class="quiet">The previous checkpoint, trained on simulations only, scored AUC {{ real.baseline.auc_planet|num:3 }} and {{ real.baseline.accuracy|pct }} on the same stars.</span>{% endif %}</p>
+            {% if real.combined %}<p class="flagline">With the vetting diagnostics added as a second stage (odd/even, secondary eclipse, centroid, radius, duration): AUC <b style="font:inherit;font-weight:600">{{ real.combined.auc_planet|num:3 }}</b>, PR-AUC {{ real.combined.pr_auc_planet|num:3 }}, {{ real.combined.accuracy|pct }} accurate. This combined answer is what every run reports.</p>{% endif %}
+            <p class="tiny">CNN alone · confusion matrix · rows label, columns predicted</p>
+            <table class="cm">
+              <thead><tr><th></th><th>Planet</th><th>Binary</th><th>Noise</th></tr></thead>
+              <tbody>{% for row in confusion %}<tr><th>{{ row.label }}</th>{% for cell in row.cells %}<td class="{% if cell.alpha > 0.5 %}strong{% endif %}"><i style="opacity:{{ cell.alpha }}"></i><span>{{ cell.n }}</span></td>{% endfor %}</tr>{% endfor %}</tbody>
+            </table>
+            <p class="co" style="margin-top:12px">Trained on {{ real.n_fit }} real stars plus the simulated population; {{ real.n_val }} real stars chose the checkpoint.</p>
+          </div>
+          <div class="panel" style="border-top:0;padding-top:0">
+            <h3>ROC on held-out real stars · one-vs-rest</h3>
+            <div id="realRoc"></div>
+          </div>
+        </div>
+      </section>
+      {% endif %}
+
+      <section class="sheet">
+        <h2 class="sheet-title">Injection and recovery <span class="quiet">· Pipeline completeness against signal-to-noise ·</span></h2>
+        {% if inj %}
+        <div class="split">
+          <div>
+            <div id="injPlot"></div>
+            <p class="legend-note">Limb-darkened transits ({{ inj.engine }}) of known period and depth injected into {{ inj.stars }} quiet real Kepler stars (labelled NTP and showing no periodic signal of their own; {{ inj.screened }} screened), then run blind through the whole pipeline. Detected means the injected period was found with a measured S/N of at least 7.1.</p>
+          </div>
+          <div>
+            <div class="figures small">
+              <div><div class="fig-label">Below S/N 4.5</div><div class="fig-value">{{ inj.recovery_below_4_5|pct:0 }}</div><div class="fig-sub">should be near zero</div></div>
+              <div><div class="fig-label">At S/N 7.1</div><div class="fig-value">{{ inj.recovery_at_7_1|pct:0 }}</div><div class="fig-sub">the detection threshold</div></div>
+              <div><div class="fig-label">From S/N 10</div><div class="fig-value">{{ inj.recovery_from_10|pct:0 }}</div><div class="fig-sub">{{ inj.n_from_10 }} injections</div></div>
+            </div>
+            <table class="mini">
+              <thead><tr><th>Injected S/N</th><th class="r">Injections</th><th class="r">Period found</th><th class="r">Detected</th><th class="r">Called planet</th></tr></thead>
+              <tbody>{% for b in inj.bins %}<tr><td class="num">{{ b.snr }}</td><td class="r num">{{ b.n }}</td><td class="r num">{{ b.period_recovered }}</td><td class="r num">{{ b.detected }}</td><td class="r num">{{ b.planet }}</td></tr>{% endfor %}</tbody>
+            </table>
+          </div>
+        </div>
+        {% else %}<p class="empty">No injection study yet. Run <span class="mono">python manage.py injection_study</span> (about 15 minutes).</p>{% endif %}
+      </section>
+
+      <section class="sheet">
+        <div class="sheet-head">
+          <h2 class="sheet-title">Blind end-to-end runs <span class="quiet">· The pipeline is given only the photometry and must find the period itself ·</span></h2>
+          <div class="sheet-tools">
+            {% if state.status == "running" %}<span>Running {{ state.done }} of {{ state.total }} · {{ state.current }}</span>
+            {% elif dataset and remaining %}
+            <form method="post" action="{% url 'benchmark_start' %}" class="inline">{% csrf_token %}
+              <select name="per_class" aria-label="Stars per class"><option value="5">5 per class</option><option value="10" selected>10 per class</option><option value="20">20 per class</option><option value="40">all remaining</option></select>
+              <button class="go sm">Run blind benchmark</button></form>
+            <span class="quiet">{{ remaining }} held-out stars not yet run</span>
+            {% endif %}
+          </div>
+        </div>
+        {% if state.error %}<p class="flagline high">{{ state.error }}</p>{% endif %}
+        {% if blind.n %}
+        <div class="figures small">
+          <div><div class="fig-label">Stars run</div><div class="fig-value">{{ blind.n }}</div></div>
+          <div><div class="fig-label">Class agrees with archive</div><div class="fig-value">{{ blind.accuracy|pct:0 }}</div></div>
+          <div><div class="fig-label">Planet-vs-rest AUC</div><div class="fig-value">{{ blind.auc_planet|num:3 }}</div></div>
+          <div><div class="fig-label">Period recovered</div><div class="fig-value">{{ blind.period_exact }}<span class="fig-detail"> / {{ blind.period_total }}</span></div><div class="fig-sub">+{{ blind.period_alias }} at a 1:2 alias</div></div>
+          <div><div class="fig-label">Real planets called planet</div><div class="fig-value">{{ blind.planets_called_planet }}<span class="fig-detail"> / {{ blind.planets }}</span></div><div class="fig-sub">{{ blind.planets_queued }} reached the vetting queue</div></div>
+          <div><div class="fig-label">False positives queued</div><div class="fig-value">{{ blind.others_queued }}<span class="fig-detail"> / {{ blind.others }}</span></div><div class="fig-sub">leaked past every check</div></div>
+        </div>
+        <div class="pgrid">
+          <div class="panel">
+            <h3>Measured period against the catalogued period</h3>
+            <div id="periodScatter"></div>
+            <p class="legend-note">Points on the solid line were recovered exactly; the dashed lines are the half- and double-period aliases.</p>
+          </div>
+          <div class="panel">
+            <h3>P(planet) by what the star really is</h3>
+            {% for h in blind.hist %}
+            <p class="tiny" style="margin:10px 0 4px">{{ h.label }}</p>
+            <div style="display:grid;grid-template-columns:repeat(10,1fr);gap:2px;align-items:end;height:46px">
+              {% for c in h.counts %}<div title="{{ c }} star{{ c|pluralize }}" style="height:{% widthratio c blind.hist_max 100 %}%;min-height:1px;background:var(--ink)"></div>{% endfor %}
+            </div>
+            {% endfor %}
+            <div style="display:flex;justify-content:space-between" class="co"><span>0</span><span>P(planet)</span><span>1</span></div>
+            <p class="tiny" style="margin-top:16px">Confusion matrix · rows archive disposition, columns predicted</p>
+            <table class="cm">
+              <thead><tr><th></th><th>Planet</th><th>Binary</th><th>Noise</th></tr></thead>
+              <tbody>{% for row in blind.confusion %}<tr><th>{{ row.label }}</th>{% for cell in row.cells %}<td class="{% if cell.alpha > 0.5 %}strong{% endif %}"><i style="opacity:{{ cell.alpha }}"></i><span>{{ cell.n }}</span></td>{% endfor %}</tr>{% endfor %}</tbody>
+            </table>
+          </div>
+        </div>
+        <table class="wide">
+          <thead><tr><th>Star</th><th>Archive says</th><th>Pipeline says</th><th class="r">P(planet)</th><th class="r">Catalogued period</th><th class="r">Measured</th><th>Period</th><th class="r">S/N</th><th>Disposition</th></tr></thead>
+          <tbody>
+            {% for x in blind.rows %}
+            <tr class="rowlink" data-href="{% url 'run' x.run.id %}">
+              <td class="who"><a href="{% url 'run' x.run.id %}">{{ x.run.target.display }}</a><span class="sub">{{ x.run.target.name }} · {{ x.koi }}</span></td>
+              <td>{{ x.label_name }}</td>
+              <td>{% if x.run.disposition == "NO_SIGNIFICANT_SIGNAL" %}{% if x.correct %}No significant signal{% else %}<span class="danger">No significant signal</span>{% endif %}{% elif x.correct %}{{ labels|get:x.run.prediction }}{% else %}<span class="danger">{{ labels|get:x.run.prediction }}</span>{% endif %}</td>
+              <td class="r num fit">{{ x.p_planet|pct }}</td>
+              <td class="r num">{{ x.period_true|num:4 }} d</td>
+              <td class="r num">{{ x.run.period_days|num:4 }} d</td>
+              <td>{% if x.label == 2 %}<span class="quiet">n/a</span>{% elif x.period_match == "exact" %}exact{% elif x.period_match == "none" %}<span class="danger">missed</span>{% else %}{{ x.period_match }} alias{% endif %}</td>
+              <td class="r num">{{ x.snr|num:1 }}</td>
+              <td>{% pill x.run %}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}<p class="empty">No blind runs yet.{% if not dataset %} Build the dataset first.{% endif %}</p>{% endif %}
+      </section>
+{% endblock %}
+
+{% block page_js %}
+{{ chart|json_script:"benchData" }}
+<script>
+(function(){
+  const d=jsonData('benchData'), tones=['ink','mute','gap'];
+  if(d.roc) CTEPlot(document.getElementById('realRoc'),{height:260,xLabel:'False positive rate',yLabel:'True positive rate',xDomain:[0,1],yDomain:[0,1.02],
+    series:Object.keys(d.roc).map((k,i)=>({name:`${k} (AUC ${d.auc[k].toFixed(3)})`,x:d.roc[k].fpr,y:d.roc[k].tpr,mode:'line',tone:tones[i],width:1.8,dash:i===1}))});
+  const ij=document.getElementById('injPlot');
+  if(ij && d.injection){
+    const b=d.injection.bins.filter(x=>x.n), L=Math.log10;
+    CTEPlot(ij,{height:260,xLabel:'Injected signal-to-noise (log scale)',yLabel:'Fraction',yDomain:[-0.03,1.05],xFmt:v=>Math.pow(10,v).toFixed(v<1?1:0),yFmt:v=>(v*100).toFixed(0)+'%',
+      markers:[{x:L(7.1),label:'S/N 7.1'}],
+      series:[{name:'Detected',x:b.map(x=>L(x.snr)),y:b.map(x=>x.detected/x.n),mode:'line',tone:'ink',width:2},
+              {name:'Period found',x:b.map(x=>L(x.snr)),y:b.map(x=>x.period_recovered/x.n),mode:'line',tone:'mute',width:1.5,dash:true},
+              {name:'Classified planet',x:b.map(x=>L(x.snr)),y:b.map(x=>x.planet/x.n),mode:'line',tone:'gap',width:1.5,dash:true}]});
+  }
+  const el=document.getElementById('periodScatter');
+  if(el && d.scatter.true.length){
+    const hi=Math.max(...d.scatter.true,...d.scatter.measured)*1.05;
+    CTEPlot(el,{height:260,xLabel:'Catalogued period (days)',yLabel:'Measured period (days)',xDomain:[0,hi],yDomain:[0,hi],
+      series:[{name:'Held-out star',x:d.scatter.true,y:d.scatter.measured,mode:'points',tone:'ink',size:6},
+              {name:'Exact',x:[0,hi],y:[0,hi],mode:'line',tone:'mute',width:1,hover:false},
+              {name:'1:2 aliases',x:[0,hi],y:[0,hi/2],mode:'line',tone:'mute',width:1,dash:true,hover:false},
+              {name:'',x:[0,hi/2],y:[0,hi],mode:'line',tone:'mute',width:1,dash:true,hover:false,legend:false}]});
+  }
+})();
+</script>
+{% endblock %}

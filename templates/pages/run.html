@@ -1,0 +1,215 @@
+{% extends "layout.html" %}
+{% load static cte %}
+
+{% block page %}
+      <section class="sheet">
+        <div class="sheet-head">
+          <h1 class="sheet-title">{{ run.target.display }} <span class="quiet">· Run <span class="mono">{{ run.id }}</span> · {% if run.target.alias %}{{ run.target.name }} · {% endif %}{{ run.target.mission }}{% if run.sector != None %} sector {{ run.sector }}{% endif %} ·</span></h1>
+          <div class="sheet-tools">
+            <a href="{% url 'runs' %}">‹ All runs</a>
+            <a href="{% url 'target' run.target_id %}">Target</a>
+            {% if place %}<a href="{% url 'map' %}?focus={{ place.host|urlencode }}" title="{{ place.distance_ly|num:1 }} light-years from Earth: light takes {{ place.distance_ly|num:1 }} years, Voyager 1 would take {{ place.travel.voyager1_years|bigyears }}">On the map · {{ place.distance_ly|num:1 }} ly</a>{% endif %}
+            {% if not run.is_live %}
+            <form method="post" action="{% url 'run_rerun' run.id %}" class="inline">{% csrf_token %}<button class="text">Re-run</button></form>
+            <form method="post" action="{% url 'run_delete' run.id %}" class="inline" data-confirm="Delete run {{ run.id }} and its archived products? This cannot be undone.">{% csrf_token %}<button class="text danger">Delete</button></form>
+            {% endif %}
+          </div>
+        </div>
+
+        {% if run.is_live %}
+        <div id="liveRun" data-url="{% url 'run_status' run.id %}">
+          <div class="hero">
+            <i class="hero-bar" aria-hidden="true"></i>
+            <div class="hero-num" id="runPct">{{ run.percent }}%</div>
+            <div class="hero-aside"><span id="runStage">{{ run.stage_label }}</span></div>
+          </div>
+          <div class="steps" id="runSteps">{% for s in stages %}<div class="{{ s.state }}"><i></i><span>{{ s.name }}</span></div>{% endfor %}</div>
+          <p class="quiet">Started {{ run.created_at|date:"M j, H:i:s" }} UTC. This page updates on its own.</p>
+        </div>
+        {% elif run.status == "failed" %}
+        <p class="warn-line danger">Run failed.</p>
+        <p class="flagline high">{{ run.error }}</p>
+        {% else %}
+        <div class="split">
+          <div>
+            <div class="hero">
+              <i class="hero-bar" aria-hidden="true"></i>
+              <div class="hero-num">{{ run.p_planet|pct:1 }}</div>
+              <div class="hero-aside"><span>planet probability</span><span><b>S/N {{ res.diagnostics.snr|num:1 }}</b></span><span><b>{{ res.diagnostics.n_transits }}</b> transits</span></div>
+            </div>
+            <p class="warn-line">{% pill run %} &nbsp;{% if run.disposition == "CONFIRMED_VETTING_QUEUE" %}High-confidence transit, ready for vetting.{% elif run.disposition == "MANUAL_REVIEW" %}Planet-like, below the confidence threshold.{% elif run.disposition == "FALSE_POSITIVE_SUSPECT" %}Planet-like shape, but a diagnostic disagrees.{% elif run.disposition == "FALSE_POSITIVE_ECLIPSING_BINARY" %}Classified as an eclipsing binary.{% elif run.disposition == "REJECTED_NOISE" %}Classified as stellar or instrumental noise.{% else %}No transit above the detection threshold.{% endif %}</p>
+            {% for p in probs %}
+            <div class="meter" style="grid-template-columns:190px 1fr 56px"><span{% if p.top %} style="font-weight:500"{% endif %}>{{ p.label }}</span><span class="meter-t"><i style="width:{{ p.pct }}%"></i></span><span class="meter-n">{{ p.p|pct:2 }}</span></div>
+            {% endfor %}
+            <p class="co" style="margin-top:10px">{% if res.classification.second_stage %}CNN + vetting diagnostics (CNN alone: {{ res.classification.cnn_probabilities.PLANET_CANDIDATE|pct:1 }} planet){% else %}Dual-branch 1D-CNN softmax{% endif %} · BLS SDE {{ res.bls.sde|num:1 }} · wall time {{ run.duration_s|dur }} · finished {{ run.finished_at|date:"M j, H:i" }} UTC</p>
+          </div>
+          <div>
+            <h2 class="sheet-title">Derived parameters <span class="quiet">· Classical orbital mechanics ·</span></h2>
+            <div class="figures small" style="margin-bottom:14px">
+              <div><div class="fig-label">Period</div><div class="fig-value">{{ res.parameters.period_days|num:5 }} <span class="fig-detail">d</span></div></div>
+              <div><div class="fig-label">Depth</div><div class="fig-value">{{ res.parameters.transit_depth_ppm|num:0 }} <span class="fig-detail">ppm</span></div></div>
+              <div><div class="fig-label">Radius</div><div class="fig-value">{{ res.parameters.radius_earth|num:2 }} <span class="fig-detail">R⊕</span></div></div>
+            </div>
+            <dl class="kv">
+              <dt>Radius ratio \(R_p/R_\star\)</dt><dd>{{ res.parameters.radius_ratio|num:4 }}</dd>
+              <dt>Semi-major axis</dt><dd>{{ res.parameters.semi_major_axis_au|num:4 }} AU · \(a/R_\star\) = {{ res.parameters.a_over_rstar|num:2 }}</dd>
+              <dt>Transit duration \(T_{\mathrm{dur}}\), theory · fitted</dt><dd>{{ res.parameters.transit_duration_hours|num:2 }} h · {{ res.fit.t14_hours|num:2 }} h</dd>
+              <dt>Equilibrium temperature \(T_{\mathrm{eq}}\)</dt><dd>{{ res.parameters.equilibrium_temp_k|num:0 }} K</dd>
+              {% if res.refined.converged %}
+              <dt>Radius, limb-darkened fit</dt><dd><b style="font-weight:600">{{ res.refined.radius_earth|num:2 }} ± {{ res.refined.radius_earth_err|num:2 }} R⊕</b></dd>
+              <dt>\(R_p/R_\star\) · impact parameter \(b\), fitted</dt><dd>{{ res.refined.radius_ratio|num:4 }} ± {{ res.refined.radius_ratio_err|num:4 }} · {{ res.refined.impact_param|num:2 }} ± {{ res.refined.impact_param_err|num:2 }}</dd>
+              <dt>\(a/R_\star\), fitted · stellar density \(\rho_\star\)</dt><dd>{{ res.refined.a_over_rstar|num:2 }} ± {{ res.refined.a_over_rstar_err|num:2 }} · {{ res.refined.density_solar|num:2 }} ρ☉</dd>
+              {% endif %}
+              <dt>Mid-transit epoch \(t_0\)</dt><dd>{{ res.bls.t0|num:4 }}</dd>
+              <dt>Host star{% if res.stellar.assumed %} <span class="tag bad">solar values assumed</span>{% endif %}</dt><dd>{{ res.stellar.t_eff_k|num:0 }} K · {{ res.stellar.r_star_solar|num:3 }} R☉ · {{ res.stellar.m_star_solar|num:3 }} M☉</dd>
+              <dt>Assumptions</dt><dd>\(b\) = {{ res.settings.impact_param }} · \(A_B\) = {{ res.settings.bond_albedo }}</dd>
+            </dl>
+          </div>
+        </div>
+        {% endif %}
+      </section>
+
+      {% if run.status == "completed" %}
+      <section class="sheet">
+        <div class="cols">
+          <div>
+            <h2 class="sheet-title">False-positive diagnostics <span class="quiet">· {{ res.flags|length }} flag{{ res.flags|length|pluralize }} ·</span></h2>
+            {% for f in res.flags %}<p class="flagline {{ f.severity }}"><b>{{ f.code }}</b>{{ f.message }}</p>
+            {% empty %}<p class="flagline">All automated checks are consistent with a transiting planet.</p>{% endfor %}
+            <dl class="kv">
+              <dt>Odd / even depth</dt><dd>{% if res.diagnostics.odd_even %}{{ res.diagnostics.odd_even.depth_odd_ppm|num:0 }} / {{ res.diagnostics.odd_even.depth_even_ppm|num:0 }} ppm · {{ res.diagnostics.odd_even.sigma|num:1 }}σ{% else %}not measurable{% endif %}</dd>
+              <dt>Secondary eclipse at phase 0.5</dt><dd>{% if res.diagnostics.secondary %}{{ res.diagnostics.secondary.depth_ppm|num:0 }} ppm · {{ res.diagnostics.secondary.sigma|num:1 }}σ{% else %}not measurable{% endif %}</dd>
+              <dt>In-transit centroid shift</dt><dd>{% if res.diagnostics.centroid %}{{ res.diagnostics.centroid.offset_mpix|num:2 }} mpix · {{ res.diagnostics.centroid.sigma|num:1 }}σ{% if res.diagnostics.centroid.separation_px != None %} · source {{ res.diagnostics.centroid.separation_px|num:2 }} px away{% endif %}{% else %}no centroid data{% endif %}</dd>
+              <dt>Transit shape \(2T_{12}/T_{14}\), 0 box → 1 V</dt><dd>{{ res.fit.v_shape|num:2 }}</dd>
+              <dt>Fitted / theoretical \(T_{\mathrm{dur}}\)</dt><dd>{{ res.diagnostics.duration_ratio|num:2 }}</dd>
+              <dt>Out-of-transit scatter</dt><dd>{{ res.diagnostics.oot_scatter_ppm|num:0 }} ppm</dd>
+              <dt>Shape-derived \(b\) · \(a/R_\star\)</dt><dd>{% if res.shape.valid %}{{ res.shape.impact_param|num:2 }} · {{ res.shape.a_over_rstar|num:2 }} (catalogue {{ res.parameters.a_over_rstar|num:2 }}){% else %}unconstrained{% endif %}</dd>
+              <dt>Stellar density \(\rho_\star\), transit · catalogue</dt><dd>{% if res.shape.valid %}{{ res.shape.density_solar|num:2 }} · {{ res.shape.density_catalogue_solar|num:2 }} ρ☉{% else %}— · {{ res.shape.density_catalogue_solar|num:2 }} ρ☉{% endif %}</dd>
+              <dt>Depth: fitted · min-bin · BLS</dt><dd>{{ res.depth.adopted_ppm|num:0 }} · {{ res.depth.min_bin_ppm|num:0 }} · {{ res.depth.bls_ppm|num:0 }} ppm</dd>
+            </dl>
+            {% for a in res.additional_signals %}
+            <p class="flagline"><b>SECOND_SIGNAL</b>With the main transit masked, another periodic dip remains: P = {{ a.period_days|num:4 }} d, {{ a.depth_ppm|num:0 }} ppm, {{ a.duration_hours|num:1 }} h, S/N {{ a.snr|num:1 }} over {{ a.transits }} transits. Possibly a second planet.</p>
+            {% endfor %}
+            {% if res.archive_match %}
+            <h3 style="font-size:14px;font-weight:500;margin:22px 0 6px">NASA Exoplanet Archive cross-match</h3>
+            {% with m=res.archive_match.match %}
+            {% if m %}<p class="flagline">Matches <b style="font:inherit;font-weight:600">{{ m.name }}</b> ({{ m.status|lower }}) at {{ m.alias }}: catalogued P = {{ m.period_days|num:5 }} d, measured within {{ m.period_rel_error|sci }}{% if m.radius_rel_error != None %}; radius {{ m.radius_earth|num:2 }} R⊕ catalogued, {{ m.radius_rel_error|relerr }} here{% endif %}.</p>
+            {% elif res.archive_match.objects %}<p class="flagline high">The detected period matches none of the {{ res.archive_match.objects|length }} catalogued signal{{ res.archive_match.objects|length|pluralize }} for this star.</p>
+            {% else %}<p class="flagline">Nothing is catalogued for this star: this would be a new signal.</p>{% endif %}
+            {% endwith %}
+            {% if res.archive_match.objects %}
+            <table class="mini"><thead><tr><th>Catalogued object</th><th>Status</th><th class="r">Period</th><th class="r">Radius</th><th class="r">Depth</th></tr></thead><tbody>
+              {% for o in res.archive_match.objects %}<tr><td>{{ o.name }}<span class="sub">{{ o.catalogue }}</span></td><td>{{ o.status }}</td><td class="r num">{{ o.period_days|num:5 }} d</td><td class="r num">{% if o.radius_earth %}{{ o.radius_earth|num:2 }} R⊕{% else %}—{% endif %}</td><td class="r num">{% if o.depth_ppm %}{{ o.depth_ppm|num:0 }} ppm{% else %}—{% endif %}</td></tr>{% endfor %}
+            </tbody></table>
+            {% endif %}
+            {% endif %}
+            {% if res.truth %}
+            <p class="co" style="margin-top:12px">{% if run.source == "benchmark" %}Blind benchmark — the archive lists {{ res.truth.koi }} as {{ res.truth.kind|lower_words }}{% else %}Injection recovery — injected {{ res.truth.kind|lower_words }}{% endif %}{% if res.truth.period_days %}, P = {{ res.truth.period_days|num:5 }} d recovered to {{ res.truth.period_rel_error|sci }} relative{% if res.truth.period_rel_error > 0.4 %} (detected at the half-period alias){% endif %}{% endif %}{% if res.truth.depth %}, depth {{ res.truth.depth|times:1000000|num:0 }} ppm ({{ res.truth.depth_rel_error|relerr }}){% endif %}.</p>
+            {% endif %}
+          </div>
+          <div>
+            <h2 class="sheet-title">Human vetting <span class="quiet">· {% if run.vetting_status == "confirmed" %}Confirmed{% elif run.vetting_status == "false_positive" %}False positive{% else %}Pending{% endif %}{% if run.vetted_at %} · {{ run.vetted_at|date:"M j, H:i" }} UTC{% endif %} ·</span></h2>
+            <form method="post" action="{% url 'run_vet' run.id %}" class="field">{% csrf_token %}
+              <label for="vetNote">Reviewer note <span class="co">(optional, written to the audit trail)</span></label>
+              <textarea id="vetNote" name="note" rows="4" maxlength="2000">{{ run.vetting_note }}</textarea>
+              <div class="actions" style="margin-top:6px">
+                <button class="go sm" name="status" value="confirmed">Confirm candidate</button>
+                <button class="sm" name="status" value="false_positive">Mark false positive</button>
+                {% if run.vetting_status != "pending" %}<button class="text" name="status" value="pending">Reopen</button>{% endif %}
+              </div>
+            </form>
+            <h2 class="sheet-title" style="margin-top:34px">Archive <span class="quiet">· Parquet + JSONL ·</span></h2>
+            <ul class="list">
+              {% for n in downloads %}<li style="display:flex;justify-content:space-between"><a href="{% url 'run_download' run.id n|add:'.parquet' %}">{{ n }}.parquet</a><span class="co num">{% for key, size in res.archive.items %}{% if key == n|add:".parquet" %}{{ size|filesizeformat }}{% endif %}{% endfor %}</span></li>{% endfor %}
+              <li style="display:flex;justify-content:space-between"><a href="{% url 'run_download' run.id 'audit.jsonl' %}">audit.jsonl</a><span class="co">{{ logs|length }} records</span></li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      {% if res.visuals %}
+      <section class="sheet" id="visualModel">
+        <h2 class="sheet-title">Visual model <span class="quiet">· What the star and its companion are doing, and what that should look like ·</span></h2>
+        <div class="split" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:44px">
+          <div>
+            <div id="systemView" data-height="330"></div>
+            <p class="legend-note">Companion, stellar disc and orbit drawn to scale{% if res.visuals.geometry.from_shape %} from the geometry the light curve itself implies: \(R_p/R_\star\) = {{ res.visuals.geometry.k|num:4 }}, \(a/R_\star\) = {{ res.visuals.geometry.a_rs|num:2 }}, \(b\) = {{ res.visuals.geometry.b|num:2 }}{% else %} from the catalogued star: \(R_p/R_\star\) = {{ res.parameters.radius_ratio|num:4 }}, \(a/R_\star\) = {{ res.parameters.a_over_rstar|num:2 }}, \(b\) = {{ res.settings.impact_param }} (the transit shape does not constrain the geometry){% endif %}. Dots are the observed folded flux. Click to pause; move the pointer to scrub.</p>
+          </div>
+          <div>
+            <div class="panel" style="border-top:0;padding-top:0">
+              <h3>Expected against observed · residual scatter {{ res.visuals.residual_rms_ppm|num:0 }} ppm</h3>
+              <div id="expPlot"></div>
+              <div id="resPlot"></div>
+            </div>
+          </div>
+        </div>
+        <div class="pgrid three" style="grid-template-columns:repeat(3,minmax(0,1fr))">
+          <div class="panel"><h3>Odd against even transits</h3><div id="oddEvenPlot"></div><p class="legend-note">A planet gives identical curves. Different depths mean an eclipsing binary at twice this period.</p></div>
+          <div class="panel"><h3>Half an orbit later · phase 0.5</h3><div id="secPlot"></div><p class="legend-note">A dip here is a secondary eclipse: the companion shines by its own light.</p></div>
+          <div class="panel"><h3>Depth of each transit</h3><div id="depthPlot"></div><p class="legend-note">Dashed line is the fitted depth. Scatter beyond the noise points to blends or spots.</p></div>
+        </div>
+        <div class="panel wide" id="scalePanel" data-radius="{{ res.parameters.radius_earth }}" data-a="{{ res.parameters.semi_major_axis_au }}" data-rstar="{{ res.stellar.r_star_solar|default:1 }}">
+          <h3>To scale with the Solar System{% if place %} · <a href="{% url 'map' %}?focus={{ place.host|urlencode }}">{{ place.distance_ly|num:1 }} light-years from Earth, on the map</a>{% endif %}</h3>
+          <div class="cols">
+            <div><div class="map-discs" id="scaleDiscs"></div><p class="legend-note">Sizes of the companion, as measured here, beside Earth, Neptune and Jupiter.</p></div>
+            <div><div id="scaleOrbit"></div><p class="legend-note" id="scaleOrbitNote"></p></div>
+          </div>
+        </div>
+        <div class="pgrid">
+          <div class="panel"><h3>Every transit, stacked · {{ res.visuals.stack|length }} observed</h3><div id="stackPlot"></div><p class="legend-note">One row per transit; darker is deeper. A real signal lines up in a vertical band.</p></div>
+          <div class="panel"><h3>What the classifier looked at · {{ res.explain.class|lower_words }}</h3><div id="salLocal"></div><div id="salGlobal"></div>
+            <p class="legend-note">Occlusion saliency: how far the winning probability falls when that stretch of the input is flattened. Tall bars are the evidence the network relied on.</p></div>
+        </div>
+      </section>
+      {% endif %}
+
+      <section class="sheet" id="plots" data-url="{% url 'run_series' run.id %}">
+        <div class="sheet-head">
+          <h2 class="sheet-title">Light curve <span class="quiet">· {{ res.input.cadences|num:0 }} cadences · {{ res.input.baseline_days|num:1 }} d · {{ res.input.cadence_minutes|num:1 }} min cadence · {{ res.conditioning.rejected }} outliers rejected ·</span></h2>
+          <div class="seg" id="lcSeg" role="group" aria-label="Light curve view"><button type="button" data-view="norm" class="on">Normalized + trend</button><button type="button" data-view="flat">Detrended</button></div>
+        </div>
+        <div id="lcPlot"><p class="quiet">Reading the archive…</p></div>
+        <p class="legend-note">Dashed lines mark predicted transit times from the fitted ephemeris.</p>
+        <div class="pgrid">
+          <div class="panel">
+            <h3>BLS periodogram · {{ res.bls.n_periods|num:0 }} trial periods · \(\mathrm{SR} \times 10^{3}\)</h3>
+            <div id="pgPlot"></div>
+          </div>
+          <div class="panel">
+            <div class="sheet-head"><h3>Phase-folded transit · CNN input tensors</h3>
+              <div class="seg" id="foldSeg" role="group" aria-label="Folded view"><button type="button" data-view="local" class="on">Local · 61 bins</button><button type="button" data-view="global">Global · 201 bins</button></div></div>
+            <div id="foldPlot"></div>
+          </div>
+        </div>
+      </section>
+      {% endif %}
+
+      <section class="sheet">
+        <div class="sheet-head">
+          <h2 class="sheet-title">Audit trail <span class="quiet">· {{ logs|length }} JSONL records · SHA-256 hash chained ·</span></h2>
+          <div class="sheet-tools">
+            <form method="post" action="{% url 'run_verify' run.id %}" class="inline">{% csrf_token %}<button class="text">Verify integrity</button></form>
+            <a href="{% url 'run_download' run.id 'audit.jsonl' %}">Download JSONL</a>
+          </div>
+        </div>
+        <div id="runLogs">{% include "partials/_log_table.html" %}</div>
+      </section>
+{% endblock %}
+
+{% block page_js %}
+<script>
+(function(){
+  const el=document.getElementById('scalePanel'); if(!el) return;
+  const r=+el.dataset.radius, a=+el.dataset.a, rs=+el.dataset.rstar||1; if(!(r>0)) { el.hidden=true; return; }
+  const items=[['Earth',1,'ok'],['Neptune',3.88,'mute'],['This companion',r,'ink'],['Jupiter',11.2,'mute']].sort((x,y)=>x[1]-y[1]);
+  const big=Math.max(...items.map(i=>i[1])), px=v=>Math.max(1.5,v/big*46);
+  document.getElementById('scaleDiscs').innerHTML=items.map(i=>`<span class="map-disc"><i style="width:${2*px(i[1])}px;height:${2*px(i[1])}px;background:var(--${i[2]})"></i>${i[0]}<br>${i[1]>=10?i[1].toFixed(1):i[1].toFixed(2)} R⊕</span>`).join('');
+  if(!(a>0)) return;
+  const orbits=[['This orbit',a,'ink'],['Mercury',0.387,'mute'],['Earth',1,'ok']], top=Math.max(a,1), sun=0.00465*rs;
+  document.getElementById('scaleOrbit').innerHTML=orbits.map(o=>`<div class="meter" style="grid-template-columns:90px 1fr 70px"><span>${o[0]}</span><span class="meter-t"><i style="width:${Math.max(0.4,o[1]/top*100)}%;background:var(--${o[2]})"></i></span><span class="meter-n">${o[1]<0.1?o[1].toFixed(4):o[1].toFixed(3)} AU</span></div>`).join('');
+  document.getElementById('scaleOrbitNote').textContent=`Distance from the star. This orbit is ${a<1?(1/a).toFixed(a<0.1?0:1)+' times closer in than Earth’s':(a).toFixed(1)+' times Earth’s'}, only ${(a/sun).toFixed(1)} stellar radii out; light from the star reaches it in ${a*499.005<120?(a*499.005).toFixed(0)+' seconds':(a*8.317).toFixed(1)+' minutes'}, against 8.3 minutes for Earth.`;
+})();
+</script>
+<script src="{% static 'js/system.js' %}?v=4"></script>
+<script src="{% static 'js/run.js' %}?v=5"></script>
+{% endblock %}

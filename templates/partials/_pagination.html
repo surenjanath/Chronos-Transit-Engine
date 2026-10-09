@@ -1,0 +1,10 @@
+{% load cte %}
+        {% if items.paginator.num_pages > 1 %}
+        <div class="pager-row">
+          <span>{{ items.start_index }}–{{ items.end_index }} of {{ items.paginator.count }}</span>
+          <span>
+            {% if items.has_previous %}<a href="{% qs page=items.previous_page_number %}">‹ {{ prev_label|default:"Previous" }}</a>{% endif %}
+            {% if items.has_next %}<a href="{% qs page=items.next_page_number %}">{{ next_label|default:"Next" }} ›</a>{% endif %}
+          </span>
+        </div>
+        {% endif %}

@@ -1,0 +1,44 @@
+{% extends "layout.html" %}
+{% load cte %}
+
+{% block page %}
+      <section class="sheet">
+        <h1 class="sheet-title">Settings <span class="quiet">· Pipeline defaults applied to every new analysis ·</span></h1>
+        <form method="post" novalidate>{% csrf_token %}
+          {{ form.non_field_errors }}
+          <div class="form-grid">
+            {% for field in form.pipeline_bound_fields %}
+            <label><span>{{ field.label }}</span>{{ field }}<span class="help">{{ field.help_text }} · default {{ defaults|get:field.name }}</span>{{ field.errors }}</label>
+            {% endfor %}
+          </div>
+          <div class="actions">
+            <button class="go sm" type="submit">Save changes</button>
+            <button class="sm" type="submit" name="reset" value="1" formnovalidate>Restore PRD defaults</button>
+          </div>
+        </form>
+      </section>
+      <section class="sheet">
+        <div class="cols">
+          <div>
+            <h2 class="sheet-title">Acceptance tolerances <span class="quiet">· Fixed by PRD §6 ·</span></h2>
+            <dl class="kv">
+              <dt>BLS period recovery</dt><dd>\(|\Delta P| / P &lt; 10^{-4}\)</dd>
+              <dt>Transit depth \(\delta\)</dt><dd>\(\pm\,5\%\)</dd>
+              <dt>Radius estimation \(R_p\)</dt><dd>\(\pm\,10\%\)</dd>
+              <dt>Classification AUC</dt><dd>\(\ge 0.96\)</dd>
+              <dt>Structured log integrity</dt><dd>100% valid</dd>
+            </dl>
+          </div>
+          <div>
+            <h2 class="sheet-title">System <span class="quiet">· Storage ·</span></h2>
+            <dl class="kv">
+              <dt>Relational archive</dt><dd>{{ database }}</dd>
+              <dt>Columnar archive</dt><dd>Parquet, zstd</dd>
+              <dt>Telemetry</dt><dd>JSONL, hash chained</dd>
+              <dt>Data directory</dt><dd class="mono" style="overflow-wrap:anywhere">{{ data_dir }}</dd>
+            </dl>
+            <p class="co" style="margin-top:10px">Set <span class="mono">CTE_DATABASE_URL</span> to a PostgreSQL URL to use Postgres instead of the local SQLite file.</p>
+          </div>
+        </div>
+      </section>
+{% endblock %}

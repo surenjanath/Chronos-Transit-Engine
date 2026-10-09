@@ -1,0 +1,45 @@
+{% extends "layout.html" %}
+{% load cte %}
+{% block body_attrs %} data-autoreload{% endblock %}
+
+{% block page %}
+      <section class="sheet">
+        <div class="sheet-head">
+          <h1 class="sheet-title">{{ t.display }} <span class="quiet">· {% if t.alias %}{{ t.name }} · {% endif %}{{ t.mission }} ·</span></h1>
+          <div class="sheet-tools"><a href="{% url 'targets' %}">‹ All targets</a>{% if place %}<a href="{% url 'map' %}?focus={{ place.host|urlencode }}" title="{{ place.distance_ly|num:1 }} light-years from Earth: light takes {{ place.distance_ly|num:1 }} years, Voyager 1 would take {{ place.travel.voyager1_years|bigyears }}">On the map · {{ place.distance_ly|num:1 }} ly</a>{% endif %}</div>
+        </div>
+        <div class="split">
+          <div>
+            {% if latest %}
+            <div class="figures small">
+              <div><div class="fig-label">Period</div><div class="fig-value">{{ latest.period_days|num:5 }} <span class="fig-detail">d</span></div></div>
+              <div><div class="fig-label">Depth</div><div class="fig-value">{{ latest.depth_ppm|num:0 }} <span class="fig-detail">ppm</span></div></div>
+              <div><div class="fig-label">Radius</div><div class="fig-value">{{ latest.radius_earth|num:2 }} <span class="fig-detail">R⊕</span></div></div>
+              <div><div class="fig-label">P(planet)</div><div class="fig-value">{{ latest.p_planet|pct }}</div></div>
+            </div>
+            <p class="warn-line">Latest disposition: {{ latest.disposition_label|lower }}.</p>
+            {% else %}<p class="empty">No completed run for this target yet.</p>{% endif %}
+          </div>
+          <dl class="kv">
+            <dt>Effective temperature \(T_{\mathrm{eff}}\)</dt><dd>{% if t.t_eff_k %}{{ t.t_eff_k|num:0 }} K{% else %}—{% endif %}</dd>
+            <dt>Stellar radius \(R_\star\)</dt><dd>{% if t.r_star_solar %}{{ t.r_star_solar|num:3 }} R☉{% else %}—{% endif %}</dd>
+            <dt>Stellar mass \(M_\star\)</dt><dd>{% if t.m_star_solar %}{{ t.m_star_solar|num:3 }} M☉{% else %}—{% endif %}</dd>
+            <dt>V magnitude</dt><dd>{{ t.v_mag|num:2 }}</dd>
+            <dt>RA / Dec</dt><dd>{% if t.ra != None %}{{ t.ra|num:4 }}°, {{ t.dec|num:4 }}°{% else %}—{% endif %}</dd>
+            <dt>First ingested</dt><dd>{{ t.created_at|date:"M j Y, H:i" }} UTC</dd>
+            {% if place %}
+            <dt>Distance from Earth</dt><dd><a href="{% url 'map' %}?focus={{ place.host|urlencode }}">{{ place.distance_ly|num:1 }} light-years</a></dd>
+            <dt>Its light tonight left in</dt><dd>{% if place.travel.light_left_year > 0 %}{{ place.travel.light_left_year|floatformat:0 }}{% else %}{{ place.travel.light_left_year|times:-1|num:0 }} BCE{% endif %}</dd>
+            <dt>Voyager 1 would arrive in</dt><dd>{{ place.travel.voyager1_years|bigyears }}</dd>
+            <dt>Planets known to the archive</dt><dd>{{ place.planets }}</dd>
+            {% else %}
+            <dt>Distance from Earth</dt><dd title="The archive lists no confirmed planet host under this name, so it has no distance for it">not in the archive</dd>
+            {% endif %}
+          </dl>
+        </div>
+      </section>
+      <section class="sheet">
+        <h2 class="sheet-title">Runs <span class="quiet">· {{ runs|length }} for this target ·</span></h2>
+        {% include "partials/_runs_table.html" %}
+      </section>
+{% endblock %}

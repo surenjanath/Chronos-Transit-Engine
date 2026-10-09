@@ -1,0 +1,37 @@
+{% extends "layout.html" %}
+{% load cte %}
+{% block body_attrs %} data-autoreload{% endblock %}
+
+{% block page %}
+      <section class="sheet">
+        <div class="sheet-head">
+          <h1 class="sheet-title">Runs <span class="quiet">· Pipeline ledger ·</span></h1>
+          <div class="sheet-tools"><a href="{% url 'export_runs' %}">Download CSV</a><a class="go sm" href="{% url 'new' %}">+ New analysis</a></div>
+        </div>
+        <div class="figures small">
+          <div><div class="fig-label">Active now</div><div class="fig-value">{{ counts.live }}</div></div>
+          <div><div class="fig-label">Completed</div><div class="fig-value">{{ counts.done }}</div></div>
+          <div><div class="fig-label">Failed</div><div class="fig-value">{{ counts.failed }}</div></div>
+          <div><div class="fig-label">Median runtime</div><div class="fig-value">{{ median|dur }}</div></div>
+        </div>
+        <form class="modebar" method="get">
+          <div class="seg" role="group" aria-label="Status">
+            {% for value, label in statuses %}<a href="{% qs status=value page='' %}" class="{% if status == value %}on{% endif %}">{{ label }}</a>{% endfor %}
+          </div>
+          <span class="quiet">{{ runs.paginator.count }} run{{ runs.paginator.count|pluralize }}</span>
+          <span class="spacer"></span>
+          {% if status %}<input type="hidden" name="status" value="{{ status }}">{% endif %}
+          <select name="disposition" aria-label="Disposition" onchange="this.form.submit()">
+            <option value="">All dispositions</option>
+            {% for key, label in dispositions.items %}<option value="{{ key }}"{% if disposition == key %} selected{% endif %}>{{ label }}</option>{% endfor %}
+          </select>
+          <input type="search" name="q" value="{{ q }}" placeholder="Search target or run id" aria-label="Search runs" style="max-width:240px">
+          <button type="submit" class="text">Search</button>
+          {% if q or disposition or status %}<a class="text" href="{% url 'runs' %}">Clear</a>{% endif %}
+        </form>
+        {% if runs %}
+          {% include "partials/_runs_table.html" %}
+          {% include "partials/_pagination.html" with items=runs %}
+        {% else %}<p class="empty">No runs match. <a href="{% url 'new' %}">Start a new analysis</a>.</p>{% endif %}
+      </section>
+{% endblock %}

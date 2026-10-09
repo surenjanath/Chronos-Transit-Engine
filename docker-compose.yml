@@ -1,0 +1,15 @@
+# Optional PostgreSQL archive. Start with `docker compose up -d`, then run the engine with
+#   CTE_DATABASE_URL=postgresql://cte:cte@localhost:5433/cte ./run.sh
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: cte
+      POSTGRES_PASSWORD: cte
+      POSTGRES_DB: cte
+    ports:
+      - "5433:5432"
+    volumes:
+      - cte_pg:/var/lib/postgresql/data
+volumes:
+  cte_pg:

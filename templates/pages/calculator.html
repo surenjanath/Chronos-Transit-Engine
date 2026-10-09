@@ -1,0 +1,50 @@
+{% extends "layout.html" %}
+{% load static cte %}
+
+{% block page %}
+      <section class="sheet">
+        <h1 class="sheet-title">Calculator <span class="quiet">· Interactive vetting tool ·</span></h1>
+        <div class="split" style="grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr)">
+          <form method="get" id="calcForm" data-url="{% url 'calculator_compute' %}">
+            <div class="chips" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+              {% for name, values in presets %}<button type="button" class="chipbtn sm" data-preset='{{ values|pretty }}'>{{ name }}</button>{% endfor %}
+            </div>
+            {% for s in sliders %}
+            <div class="slider">
+              <label for="in_{{ s.key }}">{{ s.label }}</label>
+              <input type="range" data-for="{{ s.key }}" data-min="{{ s.min }}" data-max="{{ s.max }}"{% if s.log %} data-log{% endif %} min="0" max="1000" aria-label="{{ s.key }} slider">
+              <input type="number" id="in_{{ s.key }}" name="{{ s.key }}" value="{{ s.value }}" step="any" min="0">
+              <span class="quiet">{{ s.unit }}</span>
+            </div>
+            {% endfor %}
+            <div class="actions">
+              <button type="submit" class="sm">Recalculate</button>
+              <button type="submit" class="sm" name="record" value="1" title="Write this calculation to the audit log">Record to audit log</button>
+            </div>
+          </form>
+          <div>
+            <div id="calcWarnings">{% for w in out.warnings %}<p class="flagline high">{{ w }}</p>{% endfor %}</div>
+            <div class="figures small" id="calcFigures">
+              <div><div class="fig-label">Planet radius \(R_p\)</div><div class="fig-value"><span data-out="radius_earth" data-d="3">{{ out.parameters.radius_earth|num:3 }}</span> <span class="fig-detail">R⊕</span></div><div class="fig-sub"><span data-out="radius_jupiter" data-d="3">{{ out.parameters.radius_jupiter|num:3 }}</span> R_Jup</div></div>
+              <div><div class="fig-label">Radius ratio \(R_p/R_\star\)</div><div class="fig-value"><span data-out="radius_ratio" data-d="5">{{ out.parameters.radius_ratio|num:5 }}</span></div><div class="fig-sub">\(\delta\) = <span data-out="transit_depth_ppm" data-d="0">{{ out.parameters.transit_depth_ppm|num:0 }}</span> ppm</div></div>
+              <div><div class="fig-label">Semi-major axis \(a\)</div><div class="fig-value"><span data-out="semi_major_axis_au" data-d="5">{{ out.parameters.semi_major_axis_au|num:5 }}</span> <span class="fig-detail">AU</span></div><div class="fig-sub">\(a/R_\star\) = <span data-out="a_over_rstar" data-d="2">{{ out.parameters.a_over_rstar|num:2 }}</span></div></div>
+              <div><div class="fig-label">Transit duration \(T_{\mathrm{dur}}\)</div><div class="fig-value"><span data-out="transit_duration_hours" data-d="3">{{ out.parameters.transit_duration_hours|num:3 }}</span> <span class="fig-detail">h</span></div><div class="fig-sub">circular orbit</div></div>
+              <div><div class="fig-label">Equilibrium temperature \(T_{\mathrm{eq}}\)</div><div class="fig-value"><span data-out="equilibrium_temp_k" data-d="1">{{ out.parameters.equilibrium_temp_k|num:1 }}</span> <span class="fig-detail">K</span></div><div class="fig-sub"><span data-out="equilibrium_temp_c" data-d="0">{{ out.parameters.equilibrium_temp_c|num:0 }}</span> °C</div></div>
+              <div><div class="fig-label">Insolation</div><div class="fig-value"><span data-out="insolation_earth" data-d="2">{{ out.parameters.insolation_earth|num:2 }}</span> <span class="fig-detail">S⊕</span></div><div class="fig-sub">relative to Earth</div></div>
+            </div>
+            <div class="panel">
+              <h3>Visual model · the system these numbers describe, drawn to scale</h3>
+              <div id="calcSystem" data-height="330"></div>
+              <p class="legend-note">Sky view, orbit from above, and the light curve this geometry produces. Click to pause; move the pointer to scrub.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+{% endblock %}
+
+{% block page_js %}
+{{ out.curve|json_script:"calcCurve" }}
+{{ out.geometry|json_script:"calcGeometry" }}
+<script src="{% static 'js/system.js' %}?v=4"></script>
+<script src="{% static 'js/calculator.js' %}?v=4"></script>
+{% endblock %}

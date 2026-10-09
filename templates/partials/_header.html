@@ -1,0 +1,12 @@
+  <header class="mast">
+    <nav class="nav primary" id="mainNav" aria-label="Sections">
+      {% for item in nav %}<a href="{{ item.url }}"{% if item.key == page %} class="active" aria-current="page"{% endif %}>{{ item.label }}</a>
+      {% endfor %}
+    </nav>
+    <div class="mast-right">
+      <span id="liveStatus"{% if shell.live %} class="busy"{% endif %}>{% if shell.live %}{{ shell.live }} running{% else %}Idle{% endif %}</span>
+      <span class="quiet" id="meta">{{ shell.targets }} target{{ shell.targets|pluralize }} · {{ shell.runs }} run{{ shell.runs|pluralize }}</span>
+      <a href="{% url 'export_runs' %}" title="Every run as a CSV file">Export</a>
+      <a href="#" id="navTheme" title="Switch between light and dark">Theme</a>
+    </div>
+  </header>

@@ -1,0 +1,125 @@
+{% extends "layout.html" %}
+{% load static cte %}
+{% block body_attrs %} data-autoreload{% endblock %}
+
+{% block rail %}{% if o.pending %}{% include "partials/_rail.html" with rail_count=o.pending|length %}{% endif %}{% endblock %}
+
+{% block page %}
+      <section class="sheet" id="sheetConditions">
+        <div class="split">
+          <div>
+            <h1 class="sheet-title">Transit search <span class="quiet">· Current conditions ·</span></h1>
+            <div class="figures">
+              <div><div class="fig-label">Targets</div><div class="fig-value">{{ o.n_targets }}</div><div class="fig-sub">+{{ o.targets_week }} this week</div></div>
+              <div><div class="fig-label">Completed runs</div><div class="fig-value">{{ o.n_done }}</div><div class="fig-sub">{{ o.n_failed }} failed</div></div>
+              <div><div class="fig-label">Planet candidates</div><div class="fig-value">{{ o.n_candidates }}</div><div class="fig-sub">sent to vetting</div></div>
+              <div><div class="fig-label">False positives</div><div class="fig-value">{{ o.n_fps }}</div><div class="fig-sub">flagged before export</div></div>
+            </div>
+            <div class="hero">
+              <i class="hero-bar" aria-hidden="true"></i>
+              <div class="hero-num">{% if o.n_done %}{{ o.yield_pct }}%{% else %}—{% endif %}</div>
+              <div class="hero-aside"><span>candidate yield</span><span><b>{{ o.n_candidates }}</b> of <b>{{ o.n_done }}</b> runs</span></div>
+            </div>
+            <p class="warn-line">
+              {% if not o.n_done and not o.live %}No light curves analysed yet. <a href="{% url 'new' %}" style="text-decoration:underline;text-underline-offset:3px">Start an analysis</a>.
+              {% elif o.live %}{{ o.live|length }} run{{ o.live|length|pluralize }} in progress.
+              {% elif o.pending %}{{ o.pending|length }} signal{{ o.pending|length|pluralize }} await{{ o.pending|length|pluralize:"s," }} a human decision.
+              {% else %}Vetting queue is clear.{% endif %}
+            </p>
+            <span class="tiny">Highest planet probability</span>
+            <ul class="compare">
+              {% for r in o.top %}
+              <li><a href="{% url 'run' r.id %}" style="display:flex;gap:12px;align-items:baseline;padding:11px 0">
+                <span><span class="who">{{ r.target.display }}</span><span class="sub">{{ r.target.mission }}{% if r.sector != None %} · S{{ r.sector }}{% endif %} · {{ r.radius_earth|num:2 }} R⊕ · {{ r.period_days|num:4 }} d</span></span>
+                <span class="metric">{{ r.p_planet|pct }}</span></a></li>
+              {% empty %}<li class="empty">No candidates yet.</li>
+              {% endfor %}
+            </ul>
+          </div>
+          <div>
+            <h2 class="sheet-title">Extended report <span class="quiet">· Classifier ·</span></h2>
+            <div class="extended">
+              <div class="ext-lead">
+                <div class="quiet">Queue</div>
+                <div class="mid-num">{{ o.pending|length }}</div>
+                <div class="quiet">to vet</div>
+              </div>
+              <div class="radial-wrap">
+                <svg id="radial" viewBox="0 0 280 280" role="img" aria-label="Classification mix"></svg>
+              </div>
+              <div class="buoy">
+                <div class="quiet">AUC</div>
+                <div class="buoy-num">{% if o.metrics %}{{ o.metrics.auc_planet|num:3 }}{% else %}—{% endif %}</div>
+                <div class="quiet">{% if o.metrics %}floor 0.96 · {{ o.metrics.accuracy|pct }} accurate{% else %}no checkpoint{% endif %}</div>
+              </div>
+              <div class="ext-motion">
+                <div class="quiet">In motion</div>
+                <div class="mid-num">{{ o.live|length }}</div>
+                <div class="quiet">{% if o.median_runtime %}median {{ o.median_runtime|dur }}{% endif %}</div>
+              </div>
+              <div class="ext-sources">
+                <div class="quiet">Sources</div>
+                <ul class="swells">
+                  {% for s in o.sources %}<li><b>{{ s.count }}</b> {{ s.label }}</li>{% empty %}<li class="quiet">none yet</li>{% endfor %}
+                </ul>
+              </div>
+            </div>
+            <p class="next">{% for c in o.classes %}<span class="chip"><b>{{ c.count }}</b> {{ c.label|lower }}</span>{% endfor %}</p>
+          </div>
+        </div>
+
+        <div class="today">
+          <div>
+            <h3>Awaiting vetting</h3>
+            <ul class="list">
+              {% for r in o.pending|slice:":6" %}
+              <li><a href="{% url 'run' r.id %}" style="display:flex;justify-content:space-between;gap:10px"><span>{{ r.target.display }} <span class="co">{{ r.period_days|num:3 }} d</span></span>{% pill r %}</a></li>
+              {% empty %}<li class="quiet">Nothing waiting.</li>
+              {% endfor %}
+            </ul>
+            {% if o.pending|length > 6 %}<a class="tiny" href="{% url 'vetting' %}" style="margin-top:8px">all {{ o.pending|length }} +</a>{% endif %}
+          </div>
+          <div>
+            <h3>Recent activity</h3>
+            <ul class="list">
+              {% for l in o.recent %}
+              <li>{% if l.run_id %}<a href="{% url 'run' l.run_id %}">{% endif %}
+                {% if l.stage == "INGEST" %}Run started{% elif l.stage == "CNN_INFERENCE" %}Classified{% elif l.stage == "HUMAN_VETTING" %}Vetting decision{% else %}<span class="danger">Run failed</span>{% endif %}
+                · {{ l.run.target.display|default:"system" }}{% if l.run_id %}</a>{% endif %}
+                <span class="co">{% if l.stage == "CNN_INFERENCE" %}{{ l.telemetry.disposition|lower_words }} · {% elif l.stage == "HUMAN_VETTING" %}{{ l.telemetry.decision|lower_words }} · {% endif %}{{ l.timestamp|ago }}</span></li>
+              {% empty %}<li class="quiet">No activity yet.</li>
+              {% endfor %}
+            </ul>
+          </div>
+          <div>
+            <h3>Mean stage time</h3>
+            {% for t in o.timings %}
+            <div class="meter"><span>{{ t.stage }}</span><span class="meter-t"><i style="width:{{ t.pct }}%"></i></span><span class="meter-n">{{ t.seconds|num:2 }}s</span></div>
+            {% empty %}<p class="quiet">No completed runs.</p>
+            {% endfor %}
+          </div>
+        </div>
+      </section>
+
+      <section class="sheet">
+        <h2 class="sheet-title">Throughput <span class="quiet">· Last 14 days ·</span></h2>
+        <div class="pgrid">
+          <div class="panel">
+            <h3>Completed runs and planet candidates per day</h3>
+            <div id="dailyPlot"></div>
+          </div>
+          <div class="panel">
+            <h3>Disposition of completed runs</h3>
+            {% for d in o.dispositions %}
+            <a class="hbar" href="{% url 'runs' %}?disposition={{ d.param }}"><span class="hbar-l">{{ d.label }}</span><span class="hbar-t"><i style="width:{{ d.pct }}%"></i></span><span class="hbar-n">{{ d.count }}</span></a>
+            {% endfor %}
+            <p class="legend-note">Operator decisions so far: {{ o.vetted_confirmed }} confirmed, {{ o.vetted_fp }} false positive{{ o.vetted_fp|pluralize }}.</p>
+          </div>
+        </div>
+      </section>
+{% endblock %}
+
+{% block page_js %}
+{{ chart|json_script:"overviewData" }}
+<script src="{% static 'js/overview.js' %}?v=3"></script>
+{% endblock %}

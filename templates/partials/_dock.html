@@ -1,0 +1,27 @@
+  <div id="live" class="live" data-url="{% url 'log_tail' %}" hidden>
+    <div class="live-head">
+      <strong id="liveTitle">Idle</strong>
+      <span><a href="{% url 'logs' %}">Full audit log</a> &nbsp; <button type="button" id="liveClose">Close</button></span>
+    </div>
+    <pre id="console"></pre>
+  </div>
+  <footer class="dock">
+    <div class="cycle">
+      <a href="{{ cycle_prev }}" aria-label="Previous report" style="font-size:18px;padding:0 4px">‹</a>
+      <span>Cycle reports</span>
+      <a href="{{ cycle_next }}" aria-label="Next report" style="font-size:18px;padding:0 4px">›</a>
+    </div>
+    <div class="dock-actions">
+      <a href="{% url 'new' %}">New analysis</a>
+      <a href="{% url 'vetting' %}">Vetting{% if shell.pending %} ({{ shell.pending }}){% endif %}</a>
+      <form method="post" action="{% url 'validation_start' %}">{% csrf_token %}<button type="submit">Verify</button></form>
+      <button type="button" id="logToggle">Log</button>
+      <a href="{% url 'export_candidates' %}" title="Planet candidates with flagged false positives removed">Candidates CSV</a>
+    </div>
+    <div class="geom" id="geomMarks">
+      <svg data-mark="model" class="{% if shell.model_active %}on{% endif %}" width="14" height="12" viewBox="0 0 14 12"><title>Classifier checkpoint {% if shell.model_active %}active{% else %}missing{% endif %}</title><path d="M7 0 L14 12 H0 Z" fill="currentColor"/></svg>
+      <svg data-mark="queue" class="{% if shell.pending %}on{% endif %}" width="12" height="12" viewBox="0 0 12 12"><title>{{ shell.pending }} signal{{ shell.pending|pluralize }} awaiting vetting</title><circle cx="6" cy="6" r="5" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>
+      <svg data-mark="archive" class="{% if shell.runs %}on{% endif %}" width="12" height="12" viewBox="0 0 12 12"><title>{{ shell.runs }} run{{ shell.runs|pluralize }} archived</title><path d="M6 0 L12 6 L6 12 L0 6 Z" fill="none" stroke="currentColor" stroke-width="1.2"/></svg>
+      <svg data-mark="live" class="{% if shell.live %}on{% endif %}" width="14" height="12" viewBox="0 0 14 12"><title>Pipeline {% if shell.live %}running{% else %}idle{% endif %}</title><path d="M7 1 L13 11 H1 Z" fill="none" stroke="currentColor" stroke-width="1.2"/></svg>
+    </div>
+  </footer>

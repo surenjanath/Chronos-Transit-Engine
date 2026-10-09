@@ -1,0 +1,45 @@
+{% extends "layout.html" %}
+{% load cte %}
+{% block body_attrs %} data-autoreload{% endblock %}
+
+{% block page %}
+      <section class="sheet">
+        <div class="sheet-head">
+          <h1 class="sheet-title">Vetting <span class="quiet">· Human review before citizen-science export ·</span></h1>
+          <div class="sheet-tools"><a class="go sm" href="{% url 'export_candidates' %}" title="Planet candidates with every flagged false positive removed">Export candidates CSV</a></div>
+        </div>
+        <div class="modebar">
+          <div class="seg" role="group" aria-label="Decision">
+            {% for value, label in tabs %}<a href="?tab={{ value }}" class="{% if tab == value %}on{% endif %}">{{ label }}</a>{% endfor %}
+          </div>
+          <span class="quiet">{{ runs|length }} signal{{ runs|length|pluralize }}</span>
+        </div>
+        {% if runs %}
+        <table class="wide">
+          <thead><tr><th>Target</th><th class="r">Period</th><th class="r">Depth</th><th class="r">Radius</th><th class="r">P(planet)</th><th class="r">Flags</th><th>Disposition</th><th class="r">Decision</th></tr></thead>
+          <tbody>
+            {% for r in runs %}
+            <tr class="rowlink" data-href="{% url 'run' r.id %}">
+              <td class="who"><a href="{% url 'run' r.id %}">{{ r.target.display }}</a><span class="sub">{{ r.target.mission }}{% if r.sector != None %} · S{{ r.sector }}{% endif %} · <span class="mono">{{ r.id }}</span>{% if r.vetting_note %} · “{{ r.vetting_note|truncatechars:60 }}”{% endif %}</span></td>
+              <td class="r num">{{ r.period_days|num:4 }} d</td>
+              <td class="r num">{{ r.depth_ppm|num:0 }} ppm</td>
+              <td class="r num">{{ r.radius_earth|num:2 }} R⊕</td>
+              <td class="r num fit">{{ r.p_planet|pct }}</td>
+              <td class="r num">{% if r.n_flags %}<span class="tag bad">{{ r.n_flags }}</span>{% else %}0{% endif %}</td>
+              <td>{% pill r %}</td>
+              <td class="r">
+                <form method="post" action="{% url 'run_vet' r.id %}" class="inline">{% csrf_token %}
+                  <input type="hidden" name="next" value="{{ request.get_full_path }}"><input type="hidden" name="note" value="{{ r.vetting_note }}">
+                  {% if tab == "pending" %}
+                  <button class="sm" name="status" value="false_positive">False positive</button>
+                  <button class="go sm" name="status" value="confirmed">Confirm</button>
+                  {% else %}<button class="sm" name="status" value="pending">Reopen</button>{% endif %}
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}<p class="empty">{% if tab == "pending" %}The queue is clear. New candidates appear here as runs complete.{% else %}Nothing here yet. Decisions you record are listed on this tab.{% endif %}</p>{% endif %}
+      </section>
+{% endblock %}

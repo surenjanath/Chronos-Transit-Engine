@@ -1,0 +1,13 @@
+{% load cte %}
+        <div class="rec-head"><span>Time (UTC)</span><span>Level</span><span>Stage</span><span>Message</span></div>
+        {% for l in logs %}
+        <details class="rec">
+          <summary>
+            <span class="mono">{{ l.timestamp|date:"Y-m-d H:i:s" }}.{{ l.timestamp|date:"u"|slice:":3" }}</span>
+            <span class="lvl {{ l.level }}">{{ l.level }}</span>
+            <span class="mono">{{ l.stage|default:"—" }}</span>
+            <span>{{ l.message }}{% if show_run and l.run_id %} <a class="mono quiet" href="{% url 'run' l.run_id %}">· {{ l.run_id }}</a>{% endif %}</span>
+          </summary>
+          <pre>{{ l.as_record|pretty }}</pre>
+        </details>
+        {% endfor %}

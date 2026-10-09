@@ -1,0 +1,100 @@
+{% extends "layout.html" %}
+{% load static cte %}
+{% block body_attrs %} data-autoreload{% endblock %}
+
+{% block page %}
+      <section class="sheet">
+        <div class="sheet-head">
+          <h1 class="sheet-title">Automation <span class="quiet">· Pull new data, learn from it, keep the better model ·</span></h1>
+          <div class="sheet-tools">
+            <form method="post" action="{% url 'automation_run' %}" class="inline">{% csrf_token %}<button class="go sm"{% if running %} disabled{% endif %}>{% if running %}Cycle running…{% else %}Run a cycle now{% endif %}</button></form>
+          </div>
+        </div>
+        <div class="split">
+          <div>
+            <div class="hero">
+              <i class="hero-bar" aria-hidden="true"></i>
+              <div class="hero-num" style="font-size:56px">{% if cfg.enabled %}On{% else %}Off{% endif %}</div>
+              <div class="hero-aside"><span>{% if running %}cycle in progress{% elif cfg.enabled and next_due %}next cycle {{ next_due|date:"M j, H:i" }} UTC{% elif cfg.enabled %}first cycle due now{% else %}runs only when started by hand{% endif %}</span></div>
+            </div>
+            {% if running %}<p class="warn-line">{{ cycles.0.step|default:"Starting" }}</p>{% else %}
+            <p class="warn-line">{% if dataset %}{{ dataset.stars }} labelled real stars on disk; the active model learned from {{ metrics.real.summary.stars|default:0 }}.{% else %}No labelled dataset yet: the first cycle builds one.{% endif %}</p>{% endif %}
+            <ul class="list">
+              <li><b style="font-weight:500">New targets</b> · the newest TESS Objects of Interest not yet in the catalogue are fetched from MAST and run through the full pipeline.</li>
+              <li><b style="font-weight:500">New labels</b> · more Kepler stars with settled archive dispositions are downloaded into the training and held-out sets.</li>
+              <li><b style="font-weight:500">Retraining</b> · once enough new stars arrive the classifier is retrained. The new model replaces the active one only if it scores no worse on the held-out real stars.</li>
+            </ul>
+          </div>
+          <form method="post" novalidate>{% csrf_token %}
+            <h2 class="sheet-title">Schedule</h2>
+            <label style="display:block;margin-bottom:14px"><input type="checkbox" name="enabled"{% if cfg.enabled %} checked{% endif %}> Run cycles automatically while the server is up</label>
+            <div class="form-grid">
+              <label>Minutes between cycles<input type="number" name="interval_minutes" value="{{ cfg.interval_minutes }}" min="{{ limits.interval_minutes.0 }}" max="{{ limits.interval_minutes.1 }}"><span class="help">360 = every six hours</span></label>
+              <label>New TOIs per cycle<input type="number" name="tois_per_cycle" value="{{ cfg.tois_per_cycle }}" min="0" max="{{ limits.tois_per_cycle.1 }}"><span class="help">Each takes 20–60 s</span></label>
+              <label>New labelled stars per cycle<input type="number" name="stars_per_cycle" value="{{ cfg.stars_per_cycle }}" min="0" max="{{ limits.stars_per_cycle.1 }}"><span class="help">Archive allows about 10 a minute</span></label>
+              <label>Retrain after this many new stars<input type="number" name="retrain_after_stars" value="{{ cfg.retrain_after_stars }}" min="{{ limits.retrain_after_stars.0 }}" max="{{ limits.retrain_after_stars.1 }}"><span class="help">Training takes about 12 minutes</span></label>
+            </div>
+            <div class="actions"><button class="go sm" type="submit">Save</button></div>
+            <p class="co" style="margin-top:12px">For unattended use without the web server: <span class="mono">python manage.py autopilot --loop</span></p>
+          </form>
+        </div>
+      </section>
+
+      <section class="sheet">
+        <h2 class="sheet-title">Model versions <span class="quiet">· Every training run, accepted or not ·</span></h2>
+        {% if history %}
+        <div class="pgrid">
+          <div class="panel"><h3>Planet-vs-rest AUC by training run</h3><div id="aucHistory"></div></div>
+          <div class="panel">
+            <table class="mini">
+              <thead><tr><th>Trained</th><th>Outcome</th><th class="r">Real stars</th><th class="r">AUC, real</th><th class="r">Champion then</th><th class="r">AUC, simulated</th></tr></thead>
+              <tbody>{% for h in history %}<tr>
+                <td>{{ h.trained_at|ago }}</td>
+                <td>{% if h.status == "active" %}<b style="font-weight:600">activated</b>{% elif h.status == "rejected" %}kept champion{% else %}<span class="danger">quarantined</span>{% endif %}</td>
+                <td class="r num">{{ h.real_stars }}</td><td class="r num">{{ h.auc_real|num:3 }}</td><td class="r num">{{ h.champion_auc_real|num:3 }}</td><td class="r num">{{ h.auc_simulated|num:3 }}</td>
+              </tr>{% endfor %}</tbody>
+            </table>
+          </div>
+        </div>
+        {% else %}<p class="empty">No training runs recorded yet.</p>{% endif %}
+      </section>
+
+      <section class="sheet">
+        <h2 class="sheet-title">Cycles <span class="quiet">· What each pass did ·</span></h2>
+        {% for c in cycles %}
+        <details class="rec"{% if forloop.first %} open{% endif %}>
+          <summary style="grid-template-columns:150px 90px minmax(0,1fr)">
+            <span class="mono">{{ c.started_at|date:"Y-m-d H:i" }}</span>
+            <span>{% if c.status == "running" %}<span class="pill live">running</span>{% elif c.status == "completed" %}completed{% else %}<span class="danger">{{ c.status }}</span>{% endif %}</span>
+            <span>{% if c.status == "running" %}{{ c.step }}{% else %}{{ c.summary.targets.runs|length }} new target{{ c.summary.targets.runs|length|pluralize }} analysed · {{ c.summary.dataset.added|default:0 }} labelled star{{ c.summary.dataset.added|default:0|pluralize }} added · {% if c.summary.training.retrained %}retrained, {% if c.summary.training.status == "active" %}new model activated{% elif c.summary.training.status == "rejected" %}champion kept{% else %}{{ c.summary.training.status }}{% endif %}{% else %}no retrain ({{ c.summary.training.new_stars_since_training|default:0 }} of {{ c.summary.training.needed|default:"—" }} new stars){% endif %} · {{ c.trigger }}{% endif %}</span>
+          </summary>
+          <div style="padding:8px 0 16px;border-bottom:1px solid var(--rule)">
+            {% if c.summary.targets.error %}<p class="flagline high">New targets: {{ c.summary.targets.error }}</p>{% endif %}
+            {% if c.summary.dataset.error %}<p class="flagline high">Dataset: {{ c.summary.dataset.error }}</p>{% endif %}
+            {% if c.summary.training.error %}<p class="flagline high">Training: {{ c.summary.training.error }}</p>{% endif %}
+            {% if c.summary.targets.runs %}
+            <table class="mini"><thead><tr><th>New target</th><th>Listed</th><th>Archive status</th><th>Pipeline disposition</th><th class="r">Archive period</th><th class="r">Measured</th><th class="r">P(planet)</th></tr></thead><tbody>
+              {% for r in c.summary.targets.runs %}<tr><td>{% if r.run %}<a href="{% url 'run' r.run %}" style="text-decoration:underline;text-underline-offset:3px">TOI-{{ r.toi }}</a>{% else %}TOI-{{ r.toi }}{% endif %}<span class="sub">{{ r.target }}{% if not r.run %} · run since cleared{% endif %}</span></td><td>{{ r.listed|slice:":10" }}</td><td>{{ r.archive_disposition|default:"unclassified" }}</td><td>{% if r.status == "completed" %}{{ r.disposition|lower_words }}{% else %}<span class="danger">run failed</span>{% endif %}</td><td class="r num">{{ r.archive_period_days|num:4 }} d</td><td class="r num">{{ r.period_days|num:4 }} d</td><td class="r num">{{ r.p_planet|pct }}</td></tr>{% endfor %}
+            </tbody></table>{% endif %}
+            {% for sk in c.summary.targets.skipped %}<p class="co" style="margin:4px 0 0">Skipped TOI-{{ sk.toi }}: {{ sk.reason }}.</p>{% endfor %}
+            {% if c.summary.training.retrained %}<p class="co" style="margin:8px 0 0">Retrained on {{ c.summary.training.real_stars }} real stars: challenger AUC {{ c.summary.training.auc_real|num:3 }} on held-out real stars against the champion's {{ c.summary.training.champion_auc_real|num:3 }}.</p>{% endif %}
+          </div>
+        </details>
+        {% empty %}<p class="empty">No cycles yet. Start one above, or switch the schedule on.</p>
+        {% endfor %}
+      </section>
+{% endblock %}
+
+{% block page_js %}
+{{ chart|json_script:"autoData" }}
+<script>
+(function(){
+  const d=jsonData('autoData'), el=document.getElementById('aucHistory'); if(!el||!d.labels.length) return;
+  const x=d.labels.map((_,i)=>i+1);
+  CTEPlot(el,{height:220,xLabel:'Training run',xFmt:v=>Number.isInteger(v)?String(v):'',
+    series:[{name:'Held-out real stars',x,y:d.real,mode:d.labels.length>1?'line':'points',tone:'ink',width:1.8,size:7},
+            {name:'Simulated partition',x,y:d.sim,mode:d.labels.length>1?'line':'points',tone:'mute',width:1.6,dash:true,size:7},
+            {name:'PRD floor 0.96',x:[0.5,d.labels.length+0.5],y:[0.96,0.96],mode:'line',tone:'gap',width:1,dash:true,hover:false}]});
+})();
+</script>
+{% endblock %}

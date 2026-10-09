@@ -1,0 +1,103 @@
+{% extends "layout.html" %}
+{% load static cte %}
+{% block body_attrs %} data-autoreload{% endblock %}
+
+{% block page %}
+      <section class="sheet">
+        <div class="sheet-head">
+          <h1 class="sheet-title">Validation <span class="quiet">· System verification against the acceptance criteria ·</span></h1>
+          <div class="sheet-tools">
+            <form method="post" action="{% url 'validation_start' %}" class="inline">{% csrf_token %}<button class="go sm"{% if current.status == "running" %} disabled{% endif %}>{% if current.status == "running" %}Running…{% else %}Run verification suite{% endif %}</button></form>
+          </div>
+        </div>
+        {% if current.status == "running" %}<p class="warn-line">Verification in progress. <span class="quiet" id="valProgress">{{ current.progress }}</span></p>
+        {% elif current.status == "failed" %}<p class="flagline high">The last verification run crashed: {{ current.progress }}</p>{% endif %}
+        {% if done %}
+        <div class="figures small">
+          <div><div class="fig-label">Criteria passed</div><div class="fig-value">{{ done.results.summary.passed }}<span class="fig-detail"> / {{ done.results.summary.total }}</span></div></div>
+          <div><div class="fig-label">Failed</div><div class="fig-value">{{ done.results.summary.failed }}</div></div>
+          {% if done.results.summary.extended_total %}<div><div class="fig-label">Extended checks passed</div><div class="fig-value">{{ done.results.summary.extended_passed }}<span class="fig-detail"> / {{ done.results.summary.extended_total }}</span></div><div class="fig-sub">physics, golden targets, injections</div></div>{% endif %}
+          <div><div class="fig-label">Last completed</div><div class="fig-value" style="font-size:22px;line-height:1.3">{{ done.finished_at|ago }}</div><div class="fig-sub">{{ done.results.archive_source }}</div></div>
+        </div>
+        <div class="rec-head" style="grid-template-columns:200px minmax(0,1.2fr) 190px minmax(0,1.3fr) 60px"><span>Parameter</span><span>Validation dataset</span><span>Target tolerance</span><span>Measured</span><span>Result</span></div>
+        {% for c in done.results.checks %}
+        <details class="rec">
+          <summary style="grid-template-columns:200px minmax(0,1.2fr) 190px minmax(0,1.3fr) 60px">
+            <span class="who">{{ c.parameter }}{% if c.group == "Extended" %}<span class="sub">extended check</span>{% endif %}</span><span>{{ c.dataset }}</span><span class="num">{{ c.tolerance }}</span><span class="num">{{ c.measured }}</span>
+            <span>{% if c.status == "pass" %}<span class="pill High">Pass</span>{% elif c.status == "fail" %}<span class="pill bad">Fail</span>{% else %}<span class="pill Low">Skipped</span>{% endif %}</span>
+          </summary>
+          <div style="padding:6px 0 16px;border-bottom:1px solid var(--rule)">
+            <table class="mini">
+              <thead><tr><th>Case</th><th class="r">Expected</th><th class="r">Measured</th><th class="r">Relative error</th><th class="r">Result</th></tr></thead>
+              <tbody>
+                {% for k in c.cases %}
+                <tr><td>{{ k.label }}{% if k.comb_period %}<span class="sub">Fourier comb escalation → {{ k.comb_period|num:5 }} d ({{ k.comb_rel_error|sci }})</span>{% endif %}{% if k.detail %}<span class="sub">{{ k.detail }}</span>{% endif %}</td>
+                  <td class="r num">{{ k.expected|case_value }}</td><td class="r num">{{ k.measured|case_value }}</td>
+                  <td class="r num">{% if k.rel_error != None %}{{ k.rel_error|relerr }}{% else %}—{% endif %}</td>
+                  <td class="r">{% if k.ok == True %}pass{% elif k.ok == False %}<span class="danger">fail</span>{% endif %}</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+            <p class="co" style="margin:10px 0 0">Operational failure action: {{ c.failure_action }}.{% if c.action_taken %} <b>{{ c.action_taken }}.</b>{% endif %}</p>
+            {% for n in c.notes %}<p class="co" style="margin:4px 0 0">{{ n }}</p>{% endfor %}
+          </div>
+        </details>
+        {% endfor %}
+        {% elif current.status != "running" %}
+        <p class="empty">No verification results yet. The suite tests period recovery, depth, radius, classification AUC and log integrity, and takes about three minutes.</p>
+        {% endif %}
+      </section>
+
+      <section class="sheet">
+        <div class="sheet-head">
+          <h2 class="sheet-title">Classifier <span class="quiet">· Dual-branch 1D-CNN{% if metrics %} · trained {{ metrics.trained_at|ago }} · {{ metrics.parameters|num:0 }} parameters{% endif %} ·</span></h2>
+          <div class="sheet-tools">
+            <form method="post" action="{% url 'model_train' %}" class="inline" data-confirm="Retrain the CNN? This simulates about 39,000 TCEs and takes roughly ten minutes. The current checkpoint stays active until the new one passes the AUC threshold.">{% csrf_token %}<button class="sm"{% if train.status == "running" %} disabled{% endif %}>{% if train.status == "running" %}Training…{% elif metrics %}Retrain{% else %}Train classifier{% endif %}</button></form>
+          </div>
+        </div>
+        {% if train.status == "running" %}
+        <p class="warn-line"><span id="trainStage">{{ train.stage }}</span> <span class="quiet" id="trainPct">{{ train.progress|pct:0 }}</span></p>
+        <div class="progress"><i id="trainBar" style="width:{{ train.progress|pct:0 }}"></i></div>
+        {% endif %}
+        {% if train.error %}<p class="flagline high">{{ train.error }}</p>{% endif %}
+        {% if metrics %}
+        <div class="split">
+          <div>
+            <div class="hero">
+              <i class="hero-bar" aria-hidden="true"></i>
+              <div class="hero-num">{{ metrics.auc_planet|num:3 }}</div>
+              <div class="hero-aside"><span>planet-vs-rest AUC</span><span>floor <b>{{ tolerances.auc_min }}</b></span></div>
+            </div>
+            <p class="warn-line">{% if metrics.status == "active" %}Checkpoint active.{% else %}Checkpoint quarantined.{% endif %} <span class="quiet">{{ metrics.accuracy|pct }} accuracy on {{ metrics.n_test|num:0 }} held-out TCEs</span></p>
+            {% if metrics.real %}<p class="co" style="margin:-8px 0 14px">On {{ metrics.real.n_test }} held-out real Kepler stars: AUC {{ metrics.real.auc_planet|num:3 }}, {{ metrics.real.accuracy|pct }} accurate. <a href="{% url 'benchmark' %}" style="text-decoration:underline;text-underline-offset:3px">Benchmark</a></p>
+            {% else %}<p class="co" style="margin:-8px 0 14px">Trained on simulations only. Build the Kepler dataset and retrain to learn from real stars. <a href="{% url 'benchmark' %}" style="text-decoration:underline;text-underline-offset:3px">Benchmark</a></p>{% endif %}
+            <p class="tiny">Confusion matrix on the simulated test partition · rows true class, columns predicted</p>
+            <table class="cm">
+              <thead><tr><th></th><th>Planet</th><th>Binary</th><th>Noise</th></tr></thead>
+              <tbody>{% for row in confusion %}<tr><th>{{ row.label }}</th>{% for cell in row.cells %}<td class="{% if cell.alpha > 0.5 %}strong{% endif %}"><i style="opacity:{{ cell.alpha }}"></i><span>{{ cell.n }}</span></td>{% endfor %}</tr>{% endfor %}</tbody>
+            </table>
+            <dl class="kv" style="margin-top:18px">
+              <dt>Training set</dt><dd>{{ metrics.n_train|num:0 }} simulated TCEs{% if metrics.real %} + {{ metrics.real.n_fit }} real Kepler stars{% endif %}</dd>
+              <dt>Inputs</dt><dd>global 201 bins · local 61 bins</dd>
+              <dt>Epochs · wall time</dt><dd>{{ metrics.epochs }} · {{ metrics.train_seconds|dur }}</dd>
+            </dl>
+          </div>
+          <div>
+            <div class="panel" style="border-top:0;padding-top:0">
+              <h3>ROC curves · one-vs-rest on the held-out test partition</h3>
+              <div id="rocPlot"></div>
+            </div>
+            <div class="panel">
+              <h3>Validation AUC per training epoch</h3>
+              <div id="histPlot"></div>
+            </div>
+          </div>
+        </div>
+        {% else %}<p class="empty">No active checkpoint. Train the classifier to enable pipeline runs.</p>{% endif %}
+      </section>
+{% endblock %}
+
+{% block page_js %}
+{% if chart %}{{ chart|json_script:"modelData" }}{% endif %}
+<script src="{% static 'js/validation.js' %}?v=3"></script>
+{% endblock %}

@@ -1,0 +1,125 @@
+{% extends "layout.html" %}
+{% load cte %}
+
+{% block page %}
+      <section class="sheet">
+        <h1 class="sheet-title">New analysis <span class="quiet">· Ingest a light curve and run the full pipeline ·</span></h1>
+        <div class="aj-grid" style="display:grid;grid-template-columns:minmax(0,2.1fr) minmax(0,1fr);gap:48px">
+          <div>
+            <div class="modebar">
+              <div class="seg" role="group" aria-label="Light curve source" data-switch="#id_source_value">
+                <a href="?source=mast" data-value="mast" class="{% if source == 'mast' %}on{% endif %}">MAST archive</a>
+                <a href="?source=synthetic" data-value="synthetic" class="{% if source == 'synthetic' %}on{% endif %}">Synthetic injection</a>
+                <a href="?source=upload" data-value="upload" class="{% if source == 'upload' %}on{% endif %}">CSV upload</a>
+              </div>
+            </div>
+
+            {# MAST product search is a plain GET so the sector list is rendered by the server #}
+            <form method="get" id="mastSearch" data-when="mast"{% if source != 'mast' %} hidden{% endif %}>
+              <input type="hidden" name="source" value="mast"><input type="hidden" name="search" value="1">
+              <input type="hidden" name="mast_target" id="searchTarget"><input type="hidden" name="mission" id="searchMission">
+            </form>
+
+            <form method="post" enctype="multipart/form-data" novalidate id="runForm">{% csrf_token %}
+              <input type="hidden" name="source" id="id_source_value" value="{{ source }}">
+              {{ form.non_field_errors }}
+
+              <fieldset data-when="mast"{% if source != 'mast' %} hidden{% endif %}>
+                <legend>Target at MAST</legend>
+                <div class="form-grid" style="grid-template-columns:minmax(0,2fr) minmax(0,1fr) auto;align-items:start">
+                  <label><span>{{ form.mast_target.label }}</span>{{ form.mast_target }}<span class="help">{{ form.mast_target.help_text }}</span>{{ form.mast_target.errors }}</label>
+                  <label>Mission{{ form.mission }}<span class="help">Pipeline-author PDCSAP products</span></label>
+                  <label>&nbsp;<button type="submit" class="sm" form="mastSearch" id="searchBtn" style="padding:7px 12px">Search MAST</button></label>
+                </div>
+                {% if search_error %}<p class="flagline high">{{ search_error }}</p>{% endif %}
+                {% if products != None %}
+                  {% if products %}
+                  <p class="co">{{ products|length }} light curve{{ products|length|pluralize }} available. Choose one:</p>
+                  <div class="choice" style="max-height:150px;overflow:auto">
+                    {% for p in products %}<label><input type="radio" name="product" value="{{ p.sequence }}:{{ p.exptime }}"{% if forloop.first %} checked{% endif %}>{{ p.label }} · {% if p.exptime >= 60 %}{{ p.exptime|times:0.0166667|num:0 }} min{% else %}{{ p.exptime|num:0 }} s{% endif %}{% if p.year %} · {{ p.year }}{% endif %}</label>{% endfor %}
+                  </div>
+                  {% elif not search_error %}<p class="flagline">MAST has no light curves for this target and mission.</p>{% endif %}
+                {% else %}<p class="co">Search to pick a specific sector or quarter, or start directly to use the first available light curve.</p>{% endif %}
+              </fieldset>
+
+              <fieldset data-when="synthetic"{% if source != 'synthetic' %} hidden{% endif %}>
+                <legend>Injected signal</legend>
+                <div class="chips" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px" id="presets">
+                  <button type="button" class="chipbtn sm" data-preset='{"kind":"planet","period_days":3.524748,"depth_ppm":14600,"noise_ppm":1000,"impact_param_syn":0.1}'>Hot Jupiter</button>
+                  <button type="button" class="chipbtn sm" data-preset='{"kind":"planet","period_days":6.2679,"depth_ppm":420,"noise_ppm":130,"impact_param_syn":0.3}'>Super-Earth, bright star</button>
+                  <button type="button" class="chipbtn sm" data-preset='{"kind":"planet","period_days":9.4862,"depth_ppm":2200,"noise_ppm":500,"impact_param_syn":0.2}'>Warm Neptune</button>
+                  <button type="button" class="chipbtn sm" data-preset='{"kind":"eclipsing_binary","period_days":5.318,"depth_ppm":50000,"noise_ppm":600,"impact_param_syn":1.1}'>Grazing binary</button>
+                  <button type="button" class="chipbtn sm" data-preset='{"kind":"blend","period_days":4.1057,"depth_ppm":30000,"noise_ppm":300,"impact_param_syn":0.6}'>Background blend</button>
+                  <button type="button" class="chipbtn sm" data-preset='{"kind":"noise","noise_ppm":900}'>Pure noise</button>
+                </div>
+                <div class="form-grid">
+                  {% for field in form.syn_bound_fields %}<label><span>{{ field.label }}</span>{{ field }}<span class="help">{{ field.help_text }}</span>{{ field.errors }}</label>{% endfor %}
+                </div>
+              </fieldset>
+
+              <fieldset data-when="upload"{% if source != 'upload' %} hidden{% endif %}>
+                <legend>Your light curve</legend>
+                <div class="form-grid">
+                  <label><span>{{ form.file.label }}</span>{{ form.file }}<span class="help">{{ form.file.help_text }}; a header row is recommended</span>{{ form.file.errors }}</label>
+                  <label>Target name<input type="text" name="target_name_upload" maxlength="80" placeholder="from file name" style="border:1px solid var(--rule);padding:7px"><span class="help">Label for the catalogue</span></label>
+                </div>
+              </fieldset>
+
+              <fieldset>
+                <legend>Host star <span class="quiet" style="font-weight:400">· blank uses the TESS Input Catalog for MAST targets, otherwise a solar-type star ·</span></legend>
+                <div class="form-grid">
+                  <label><span>{{ form.t_eff_k.label }}</span>{{ form.t_eff_k }}{{ form.t_eff_k.errors }}</label>
+                  <label><span>{{ form.r_star_solar.label }}</span>{{ form.r_star_solar }}{{ form.r_star_solar.errors }}</label>
+                  <label><span>{{ form.m_star_solar.label }}</span>{{ form.m_star_solar }}{{ form.m_star_solar.errors }}</label>
+                </div>
+              </fieldset>
+
+              <details class="addsite" style="margin-bottom:26px"{% for field in form.pipeline_bound_fields %}{% if field.errors or field.value %} open{% endif %}{% endfor %}>
+                <summary>Pipeline overrides · using saved defaults: k = {{ defaults.sigma_k }}, window {{ defaults.clip_window }} cadences, periods {{ defaults.period_min }}–{{ defaults.period_max }} d</summary>
+                <div class="form-grid">
+                  {% for field in form.pipeline_bound_fields %}<label><span>{{ field.label }}</span>{{ field }}<span class="help">{{ field.help_text }}</span>{{ field.errors }}</label>{% endfor %}
+                </div>
+              </details>
+
+              <button type="submit" class="go big"{% if not shell.model_active %} disabled{% endif %}>Start analysis</button>
+              <span class="co" style="margin-left:12px">MAST targets download on first use, then run in 10–30 s. Synthetic and uploaded curves take under 10 s.</span>
+            </form>
+          </div>
+
+          <div class="block">
+            <h3>What runs</h3>
+            <ul class="list">
+              <li>Median normalization and sigma clipping</li>
+              <li>Savitzky-Golay detrending</li>
+              <li>Box Least Squares period search</li>
+              <li>Phase folding into 201 / 61-bin tensors</li>
+              <li>\(R_p\), \(a\), \(T_{\mathrm{dur}}\), \(T_{\mathrm{eq}}\) derivation</li>
+              <li>False-positive diagnostics</li>
+              <li>Dual-branch CNN classification</li>
+              <li>JSONL audit trail and Parquet archive</li>
+            </ul>
+            <p class="co" style="margin-top:12px">Each stage is described on the <a href="{% url 'method' %}" style="text-decoration:underline;text-underline-offset:3px">Method</a> page.</p>
+          </div>
+        </div>
+      </section>
+{% endblock %}
+
+{% block page_js %}
+<script>
+(function(){
+  const f=document.getElementById('runForm');
+  // carry the current target and mission into the MAST search
+  document.getElementById('mastSearch').addEventListener('submit',()=>{
+    document.getElementById('searchTarget').value=f.mast_target.value;
+    document.getElementById('searchMission').value=f.mission.value;
+  });
+  f.mast_target.addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); document.getElementById('searchBtn').click(); } });
+  document.getElementById('presets').addEventListener('click',e=>{
+    const b=e.target.closest('[data-preset]'); if(!b) return;
+    const p=JSON.parse(b.dataset.preset); for(const k in p) if(f[k]) f[k].value=p[k];
+  });
+  // the upload tab has its own name box; submit whichever belongs to the chosen source
+  f.addEventListener('submit',()=>{ if(f.source.value==='upload') f.target_name.value=f.target_name_upload.value; });
+})();
+</script>
+{% endblock %}

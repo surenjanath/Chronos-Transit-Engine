@@ -1,0 +1,57 @@
+{% extends "layout.html" %}
+{% load static cte %}
+{% block body_attrs %} data-autoreload{% endblock %}
+
+{% block page %}
+      <section class="sheet">
+        <h1 class="sheet-title">Atlas <span class="quiet">· Where these detections sit among known planets ·</span></h1>
+        <div class="split" style="grid-template-columns:minmax(0,1.35fr) minmax(0,.65fr)">
+          <div>
+            <div id="atlasPlot"></div>
+            <p class="legend-note">{% if n_ref %}Faint points are the {{ n_ref|num:0 }} confirmed transiting planets in the NASA Exoplanet Archive.{% else %}The archive reference sample could not be loaded.{% endif %} Both axes are logarithmic. Horizontal lines mark Earth, Neptune and Jupiter.</p>
+          </div>
+          <div>
+            <h2 class="sheet-title">Reading the diagram</h2>
+            <ul class="list">
+              <li><b style="font-weight:500">Upper left</b> · hot Jupiters: large, close-in, easy to detect.</li>
+              <li><b style="font-weight:500">Middle band</b> · sub-Neptunes and super-Earths, the most common planets known.</li>
+              <li><b style="font-weight:500">Above 25 R⊕</b> · too large for a planet: a stellar companion.</li>
+              <li><b style="font-weight:500">Gap near 1.8 R⊕</b> · the radius valley between rocky and gas-rich planets.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+      <section class="sheet">
+        <h2 class="sheet-title">Detections <span class="quiet">· {{ runs|length }} transit-like signals, smallest first ·</span></h2>
+        {% if runs %}
+        <table class="wide">
+          <thead><tr><th>Target</th><th class="r">Radius</th><th class="r">Period</th><th class="r">Equilibrium temp.</th><th class="r">Insolation</th><th class="r">P(planet)</th><th>Disposition</th></tr></thead>
+          <tbody>{% for r in runs %}
+            <tr class="rowlink" data-href="{% url 'run' r.id %}">
+              <td class="who"><a href="{% url 'run' r.id %}">{{ r.target.display }}</a><span class="sub">{{ r.target.mission }} · <span class="mono">{{ r.id }}</span></span></td>
+              <td class="r num">{{ r.radius_earth|num:2 }} R⊕</td><td class="r num">{{ r.period_days|num:4 }} d</td>
+              <td class="r num">{{ r.teq|num:0 }} K</td><td class="r num">{{ r.insolation|num:1 }} S⊕</td>
+              <td class="r num fit">{{ r.p_planet|pct }}</td><td>{% pill r %}</td>
+            </tr>{% endfor %}
+          </tbody>
+        </table>
+        {% else %}<p class="empty">No transit-like detections yet.</p>{% endif %}
+      </section>
+{% endblock %}
+
+{% block page_js %}
+{{ chart|json_script:"atlasData" }}
+<script>
+(function(){
+  const d=jsonData('atlasData'), L=Math.log10, col=(a,i)=>a.filter(p=>p[0]>0&&p[1]>0).map(p=>L(p[i]));
+  const pow=v=>{ const x=Math.pow(10,v); return x>=100?x.toFixed(0):x>=10?x.toFixed(0):x>=1?x.toFixed(1):x.toFixed(2); };
+  const x0=L(0.3), x1=L(400), line=(r,name)=>({name,x:[x0,x1],y:[L(r),L(r)],mode:'line',tone:'faint',width:1,dash:true,hover:false,legend:false});
+  CTEPlot(document.getElementById('atlasPlot'),{height:460,xLabel:'Orbital period (days)',yLabel:'Radius (Earth radii)',xDomain:[x0,x1],yDomain:[L(0.3),L(60)],xFmt:pow,yFmt:pow,
+    series:[{name:'Confirmed planets (archive)',x:col(d.reference,0),y:col(d.reference,1),mode:'points',tone:'faint',size:2,hover:false},
+            line(1,'Earth'),line(3.88,'Neptune'),line(11.2,'Jupiter'),
+            {name:'Eclipsing binaries',x:col(d.binary,0),y:col(d.binary,1),mode:'points',tone:'gap',size:7},
+            {name:'Needs review',x:col(d.review,0),y:col(d.review,1),mode:'points',tone:'mute',size:7},
+            {name:'Planet candidates',x:col(d.queue,0),y:col(d.queue,1),mode:'points',tone:'ink',size:7}]});
+})();
+</script>
+{% endblock %}
