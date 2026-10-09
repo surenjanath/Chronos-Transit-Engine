@@ -513,7 +513,11 @@ def start_benchmark(per_class: int = 15) -> int:
 
 def benchmark_summary() -> dict:
     """Score the blind runs against the NASA Exoplanet Archive dispositions."""
-    runs = [r for r in Run.objects.select_related("target").filter(source="benchmark", status="completed") if r.results.get("truth")]
+    latest: dict[int, Run] = {}  # a star benchmarked more than once counts once, by its most recent run
+    for r in Run.objects.select_related("target").filter(source="benchmark", status="completed").order_by("created_at"):
+        if r.results.get("truth"):
+            latest[r.target_id] = r
+    runs = list(latest.values())
     rows = []
     confusion = [[0] * 3 for _ in range(3)]
     for r in runs:

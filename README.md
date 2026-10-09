@@ -106,14 +106,17 @@ Everything here was measured on real photometry; nothing is simulated except whe
 PRD floor: AUC 0.96, PR-AUC 0.88. Training set: 30,000 simulated signals plus 802 real stars (3,201 real examples:
 each training star is seen through three independent stretches of the four-year mission and once whole).
 
-**Blind benchmark, 45 held-out stars** (the pipeline gets only the photometry and must find the period itself)
+**Blind benchmark, 90 held-out stars** (the pipeline gets only the photometry and must find the period itself)
 
 | | |
 |---|---|
-| Period found exactly | 27 of 30 (plus 1 at an alias) |
-| Real planets called planets | 14 of 15 |
-| False positives sent to the vetting queue | 1 of 30 |
-| Class agrees with the catalogue label | 84% |
+| Period found exactly | 55 of 60 (plus 2 at an alias) |
+| Real planets called planets | 29 of 30 |
+| False positives sent to the vetting queue | 2 of 60 |
+| Class agrees with the catalogue label | 86% |
+| Planet-vs-rest AUC | 0.982 |
+
+The second 45 stars were run on the final code; the first 45 on the code as it stood two small tuning changes earlier.
 
 **Injection and recovery** (Mandel-Agol transits from `batman` injected into real stars)
 
@@ -278,7 +281,7 @@ residuals are white) and `remove_periodic_variability` (divide out a non-transit
 - **Kepler-8 b sits in manual review at 0.899, a hair under the 0.90 queue threshold.** Among real Kepler signals
   deeper than 0.5% the sample holds 159 false positives and 22 planets, so a deep, high-impact transit is
   ambiguous on shape alone (the network gives it 0.25). Review is the calibrated answer, not a bug.
-- **KOI-143.01 reaches the vetting queue although the archive lists it as a false positive.** The archive rejects
+- **KOI-143.01 reaches the vetting queue although the archive lists it as a false positive** (one of the two in the benchmark; the other is TCE 6851425-1). The archive rejects
   it for a secondary eclipse. In all seventeen quarters this engine measures none (−0.9σ at phase 0.5, no
   significant dip at any other phase) and equal odd and even depths (0.2σ), so the photometry it has cannot
   reject it.
