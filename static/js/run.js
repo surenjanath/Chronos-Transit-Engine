@@ -2,7 +2,17 @@
 (function(){
   const liveRun=document.getElementById('liveRun');
   if(liveRun){
-    const steps=[...document.querySelectorAll('#runSteps div')];
+    const steps=[...document.querySelectorAll('#runSteps div')], esc=s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+    const net=window.CTENeural?CTENeural(document.getElementById('neuralLive'),{state:'idle'}):null;
+    const clock=s=>s<60?s+' s':Math.floor(s/60)+' min '+(s%60)+' s';
+    // what each stage does, for runs whose live commentary is not available (started from the command line)
+    const ABOUT={INGEST:'Fetching the star’s brightness measurements from the archive.',NORMALIZATION:'Scaling the measurements so the star’s normal brightness is 1.',
+      OUTLIER_REJECTION:'Throwing out glitches: single measurements far from their neighbours.',DETRENDING:'Removing the star’s slow brightness changes so only short dips remain.',
+      BLS_SEARCH:'Trying tens of thousands of possible orbital periods, looking for a dip that repeats on schedule.',PHASE_FOLDING:'Stacking every transit on top of the others to build one clean dip.',
+      PHYSICS_DERIVATION:'Turning the dip into a companion: its size from the depth, its orbit from the period.',VETTING_DIAGNOSTICS:'Checking for impostors: odd against even transits, a second eclipse, a shift in the star’s image.',
+      CNN_INFERENCE:'Showing the folded transit to five neural networks: planet, eclipsing binary, or noise?',REFINED_ANALYSIS:'Fitting a physical transit model, then removing this signal and searching for more planets.',
+      ARCHIVE:'Saving the light curve, the results and the audit trail.'};
+    const cnnAt=steps.findIndex(el=>el.textContent.trim()==='cnn inference');
     const tick=async()=>{
       try{
         const d=await (await fetch(liveRun.dataset.url)).json();
@@ -10,6 +20,10 @@
         document.getElementById('runPct').textContent=d.percent+'%';
         document.getElementById('runStage').textContent=d.status==='queued'?'queued':d.stage_label;
         steps.forEach((el,i)=>{ el.className=i<d.stage_index?'done':i===d.stage_index?'now':''; });
+        document.getElementById('runNote').textContent=d.note||(d.status==='queued'?'Waiting for a free worker.':ABOUT[d.stage]||'Working…');
+        document.getElementById('runElapsed').textContent=clock(d.elapsed_s);
+        if(d.events.length) document.getElementById('runFeed').innerHTML=d.events.map(e=>`<li><span class="quiet num">${e.time}</span><span>${esc(e.stage)}</span><span>${esc(e.message)}${e.facts.length?`<span class="facts">${esc(e.facts.join(' · '))}</span>`:''}</span></li>`).join('');
+        if(net) net.set(d.stage_index===cnnAt?'thinking':'idle');
       }catch(_){}
       setTimeout(tick,900);
     };
@@ -39,6 +53,9 @@
     CTEPlot(document.getElementById('pgPlot'),{height:240,zoom:true,xLabel:'Trial period (days)',
       markers:[{x:d.best_period,label:'P = '+d.best_period.toFixed(5)+' d'}],
       series:[{name:'Signal residue',x:d.period,y:d.sr,mode:'line',tone:'ink',width:1.1}]});
+    const nd=document.getElementById('neuralDone');
+    if(nd && window.CTENeural) CTENeural(nd,{state:'thinking',global:d.global_view,local:d.local_view,
+      probs:{planet:+nd.dataset.planet,binary:+nd.dataset.binary,noise:+nd.dataset.noise}});
     const v=d.visuals;
     if(v && document.getElementById('visualModel')){
       const $=id=>document.getElementById(id), ppm=y=>y.toFixed(0);

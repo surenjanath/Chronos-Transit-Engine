@@ -23,7 +23,7 @@ from .vetting import diagnose
 from .visuals import build_visuals
 
 STAGES = ["INGEST", "NORMALIZATION", "OUTLIER_REJECTION", "DETRENDING", "BLS_SEARCH", "PHASE_FOLDING",
-          "PHYSICS_DERIVATION", "VETTING_DIAGNOSTICS", "CNN_INFERENCE", "ARCHIVE"]
+          "PHYSICS_DERIVATION", "VETTING_DIAGNOSTICS", "CNN_INFERENCE", "REFINED_ANALYSIS", "ARCHIVE"]
 STAGE_PROGRESS = {s: i / len(STAGES) for i, s in enumerate(STAGES)}
 SOLAR = {"t_eff_k": 5778.0, "r_star_solar": 1.0, "m_star_solar": 1.0}
 
@@ -41,10 +41,14 @@ def decide_disposition(prediction: str, p_planet: float, flags: list[dict], snr:
 
 
 def process(data: ingest.LightCurveData, cfg: dict, log: RunLogger,
-            on_stage: Callable[[str, float], None] | None = None) -> tuple[dict, dict]:
-    """Run every analytical stage on one light curve. Returns (results, arrays for archival)."""
+            on_stage: Callable[[str, float], None] | None = None,
+            on_note: Callable[[str], None] | None = None) -> tuple[dict, dict]:
+    """Run every analytical stage on one light curve. Returns (results, arrays for archival).
+
+    `on_note` receives a plain-language line about what is happening right now, for whoever is watching."""
     timings: dict[str, float] = {}
     mark = _time.perf_counter()
+    note = on_note or (lambda text: None)
 
     def stage(name: str, frac: float = 0.0):
         if on_stage:
@@ -67,6 +71,7 @@ def process(data: ingest.LightCurveData, cfg: dict, log: RunLogger,
 
     # 2.1 median normalisation
     stage("NORMALIZATION")
+    note(f"Read {len(t_all):,} brightness measurements. Scaling them so the star's normal brightness is 1.")
     f_norm, med = median_normalize(f_raw)
     e_norm = e_raw / med if e_raw is not None else None
     log.info("Median normalization complete", "NORMALIZATION", cadences=len(t_all), median_flux=med,
@@ -75,6 +80,7 @@ def process(data: ingest.LightCurveData, cfg: dict, log: RunLogger,
 
     # 2.1 iterative rolling sigma clip
     stage("OUTLIER_REJECTION")
+    note("Throwing out glitches: single measurements far from their neighbours (cosmic rays, pointing jitter).")
     keep, iterations = sigma_clip(f_norm, cfg["sigma_k"], int(cfg["clip_window"]))
     n_rej = int((~keep).sum())
     log.info("Iterative sigma-clipping complete", "OUTLIER_REJECTION", k=cfg["sigma_k"], window=int(cfg["clip_window"]),
@@ -86,6 +92,7 @@ def process(data: ingest.LightCurveData, cfg: dict, log: RunLogger,
 
     # 2.2 Savitzky-Golay detrend (first pass)
     stage("DETRENDING")
+    note("Removing the star's slow brightness changes so only short dips remain.")
     window_days, window_trials = cfg["detrend_window_days"], []
     if cfg.get("adaptive_detrend", 0):
         window_days, window_trials = choose_detrend_window(t, f, cfg["detrend_window_days"], int(cfg["detrend_polyorder"]))
@@ -99,6 +106,7 @@ def process(data: ingest.LightCurveData, cfg: dict, log: RunLogger,
 
     # 2.3 box least squares
     stage("BLS_SEARCH")
+    note("Trying tens of thousands of possible orbital periods, looking for a dip that repeats on schedule.")
     removed: list[dict] = []
     for attempt in range(3):
         bls, periods, sr = bls_search(t, flat, e, cfg["period_min"], cfg["period_max"], cfg["q_min"], cfg["q_max"],
@@ -189,6 +197,7 @@ def process(data: ingest.LightCurveData, cfg: dict, log: RunLogger,
 
     # phase folding + ML tensors
     stage("PHASE_FOLDING")
+    note(f"Best repeating dip: every {bls.period:.4f} days. Stacking all its transits on top of each other.")
     q_local = float(np.clip(t14 / bls.period, 0.004, 0.15))
     phase, folded, fold_order = TransitAnalyticsEngine.phase_fold(t, flat, bls.period, t0)
     g_vec = global_view(phase, folded, int(cfg["global_bins"]))
@@ -200,6 +209,7 @@ def process(data: ingest.LightCurveData, cfg: dict, log: RunLogger,
 
     # 2.4 physical parameters
     stage("PHYSICS_DERIVATION")
+    note("Turning the dip into a companion: its size from the depth, its orbit from the period.")
     stellar = {**SOLAR, **{k: v for k, v in data.stellar.items() if v is not None}}
     assumed = [k for k in SOLAR if data.stellar.get(k) is None]
     if assumed:
@@ -214,6 +224,7 @@ def process(data: ingest.LightCurveData, cfg: dict, log: RunLogger,
 
     # false-positive diagnostics
     stage("VETTING_DIAGNOSTICS")
+    note("Checking for impostors: do odd and even transits match, is there a second eclipse, does the star's image shift?")
     diag, flags = diagnose(t, flat, bls.period, t0, t14, depth, params, cents_k)
     if fit["v_shape"] > 0.85 and depth > 0.003:
         flags.append({"code": "V_SHAPED", "severity": "medium",
@@ -227,6 +238,7 @@ def process(data: ingest.LightCurveData, cfg: dict, log: RunLogger,
 
     # dual-branch CNN
     stage("CNN_INFERENCE")
+    note("Showing the folded transit to five neural networks and asking each: planet, eclipsing binary, or noise?")
     l_stack = local_channels(t, flat, bls.period, t0, q_local, int(cfg["local_bins"]))
     cnn_probs = model.predict(g_vec, l_stack)
     probs = cnn_probs
@@ -267,13 +279,17 @@ def process(data: ingest.LightCurveData, cfg: dict, log: RunLogger,
         "timings": timings,
     }
     # refined analysis: limb-darkened physical fit with uncertainties, and a search for a second signal
+    stage("REFINED_ANALYSIS")
+    note(f"Verdict so far: {prediction.replace('_', ' ').lower()} at {probs['PLANET_CANDIDATE'] * 100:.0f}% planet. "
+         "Now fitting a physical transit model for a better radius.")
     x_final = (t - t0 + 0.5 * bls.period) % bls.period - 0.5 * bls.period
     refined = fit_limb_darkened(x_final, flat, bls.period, depth, t14, stellar["r_star_solar"], stellar["t_eff_k"])
     results["refined"] = refined
     search_trace: list[dict] = []
     results["additional_signals"] = search_additional(t, flat, e, bls.period, t0, t14, cfg, diag["oot_scatter_ppm"] * 1e-6,
                                                       int(cfg.get("max_additional_signals", 1)),
-                                                      stellar["m_star_solar"], stellar["r_star_solar"], search_trace, flux_raw=f)
+                                                      stellar["m_star_solar"], stellar["r_star_solar"], search_trace, flux_raw=f,
+                                                      on_pass=lambda n, limit, text: (stage("REFINED_ANALYSIS", min(0.95, n / (limit + 1))), note(text)))
     results["additional_search"] = search_trace  # every peak examined and what was decided about it
     log.info("Refined analysis complete", "REFINED_ANALYSIS",
              limb_darkened_fit={k: v for k, v in refined.items() if k != "curve"}, additional_signals=results["additional_signals"],

@@ -192,6 +192,15 @@ It is off by default. Each cycle and each training run is logged and listed on t
   other orbital phases, and an implied source at least half a pixel away: on real Kepler data a significance-only
   rule flagged confirmed planets with deep on-target transits.
 
+## Watching a run
+
+While a run is in progress its page says what is happening in plain words ("Trying tens of thousands of possible
+orbital periods, looking for a dip that repeats on schedule"), shows the eleven stages, the time elapsed, and a
+running list of what has been found so far (measurements read, glitches removed, the period, the radius, the
+verdict). During the search for further planets it reports each pass and what was just removed. A diagram of the
+classifier sits idle until its stage arrives, then animates; on the finished page the same diagram is drawn with
+that run's own folded light curve as input and its own probabilities as output.
+
 ## Visual diagnostics on every run
 
 Animated system model (sky view, orbit from above, light curve, all to scale), expected-against-observed overlay with

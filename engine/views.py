@@ -140,8 +140,42 @@ def run(request, pk):
 @require_GET
 def run_status(request, pk):
     r = get_object_or_404(Run.objects.defer("results", "config"), pk=pk)
+    from django.utils import timezone
+    started = r.started_at or r.created_at
+    events = [{"time": e.timestamp.strftime("%H:%M:%S"), "stage": e.stage.replace("_", " ").lower(), "message": e.message,
+               # the ingest record of a benchmark star carries the catalogue's answer, which is not something found
+               "facts": [] if e.stage == "INGEST" else _facts(e.telemetry or {})} for e in r.logs.order_by("-seq")[:8]][::-1]
     return JsonResponse({"status": r.status, "stage": r.stage, "stage_label": r.stage_label, "percent": r.percent,
-                         "stage_index": core.STAGES.index(r.stage) if r.stage in core.STAGES else -1})
+                         "stage_index": core.STAGES.index(r.stage) if r.stage in core.STAGES else -1,
+                         "elapsed_s": round((timezone.now() - started).total_seconds()),
+                         "note": services.live_notes.get(r.id, "") if r.status == "running" else
+                                 ("Waiting for a free worker." if r.status == "queued" else ""),
+                         "events": events})
+
+
+FACT_LABELS = (("cadences", "measurements", "{:,.0f}"), ("baseline_days", "days observed", "{:,.1f}"), ("rejected", "glitches removed", "{:,.0f}"),
+               ("trial_periods", "periods tried", "{:,.0f}"), ("period_days", "period (days)", "{:.5f}"), ("sde", "peak strength (SDE)", "{:.1f}"),
+               ("depth_ppm", "depth (ppm)", "{:,.0f}"), ("radius_earth", "radius (Earths)", "{:.2f}"), ("snr", "S/N", "{:.1f}"),
+               ("n_transits", "transits seen", "{:.0f}"), ("prediction", "verdict", "{}"), ("p_planet", "P(planet)", "{:.3f}"))
+
+
+def _facts(telemetry: dict) -> list[str]:
+    """The few numbers in a log record worth showing to someone watching a run."""
+    flat = dict(telemetry)
+    for v in telemetry.values():
+        if isinstance(v, dict):
+            for k2, v2 in v.items():
+                flat.setdefault(k2, v2)
+    out = []
+    for key, label, fmt in FACT_LABELS:
+        v = flat.get(key)
+        if v is None or isinstance(v, (dict, list)):
+            continue
+        try:
+            out.append(f"{label} {fmt.format(v)}".replace("_", " ").lower() if key == "prediction" else f"{label} {fmt.format(v)}")
+        except (ValueError, TypeError):
+            continue
+    return out[:5]
 
 
 @require_GET

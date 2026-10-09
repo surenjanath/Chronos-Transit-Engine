@@ -24,7 +24,19 @@
             <div class="hero-aside"><span id="runStage">{{ run.stage_label }}</span></div>
           </div>
           <div class="steps" id="runSteps">{% for s in stages %}<div class="{{ s.state }}"><i></i><span>{{ s.name }}</span></div>{% endfor %}</div>
-          <p class="quiet">Started {{ run.created_at|date:"M j, H:i:s" }} UTC. This page updates on its own.</p>
+          <p class="live-note" id="runNote" aria-live="polite">Starting…</p>
+          <p class="live-meta"><span id="runElapsed">0 s</span> so far · started {{ run.created_at|date:"H:i:s" }} UTC · this page updates on its own</p>
+          <div class="cols" style="grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr)">
+            <div>
+              <h2 class="sheet-title" style="margin-bottom:8px">What it has found so far</h2>
+              <ul class="live-feed" id="runFeed"><li><span class="quiet">–</span><span></span><span class="quiet">Nothing yet.</span></li></ul>
+            </div>
+            <div>
+              <h2 class="sheet-title" style="margin-bottom:8px">The classifier <span class="quiet">· wakes at stage 9 ·</span></h2>
+              <div id="neuralLive"></div>
+              <p class="legend-note">Two views of the folded light curve pass through convolution layers that pick out shapes, then dense layers that weigh them, ending in three answers. Nothing is shown here until the real folded curve exists.</p>
+            </div>
+          </div>
         </div>
         {% elif run.status == "failed" %}
         <p class="warn-line danger">Run failed.</p>
@@ -156,6 +168,9 @@
           </div>
         </div>
         <div class="pgrid">
+          <div class="panel" style="grid-column:1/-1"><h3>The classifier at work · this run's own inputs and answers</h3>
+            <div id="neuralDone" data-planet="{{ res.classification.cnn_probabilities.PLANET_CANDIDATE }}" data-binary="{{ res.classification.cnn_probabilities.ECLIPSING_BINARY }}" data-noise="{{ res.classification.cnn_probabilities.STELLAR_OR_INSTRUMENT_NOISE }}"></div>
+            <p class="legend-note">The folded curve on the left is what the network was given; the bars on the right are what it answered ({{ res.classification.cnn_probabilities.PLANET_CANDIDATE|pct:1 }} planet). The layers in between are in their real order and labelled with their real widths; the dots and moving pulses illustrate the direction of flow, not individual units or activations.{% if res.classification.second_stage %} The vetting evidence then moved the final answer to {{ run.p_planet|pct:1 }}.{% endif %}</p></div>
           <div class="panel"><h3>Every transit, stacked · {{ res.visuals.stack|length }} observed</h3><div id="stackPlot"></div><p class="legend-note">One row per transit; darker is deeper. A real signal lines up in a vertical band.</p></div>
           <div class="panel"><h3>What the classifier looked at · {{ res.explain.class|lower_words }}</h3><div id="salLocal"></div><div id="salGlobal"></div>
             <p class="legend-note">Occlusion saliency: how far the winning probability falls when that stretch of the input is flattened. Tall bars are the evidence the network relied on.</p></div>
@@ -211,5 +226,6 @@
 })();
 </script>
 <script src="{% static 'js/system.js' %}?v=4"></script>
-<script src="{% static 'js/run.js' %}?v=5"></script>
+<script src="{% static 'js/neural.js' %}?v=1"></script>
+<script src="{% static 'js/run.js' %}?v=7"></script>
 {% endblock %}

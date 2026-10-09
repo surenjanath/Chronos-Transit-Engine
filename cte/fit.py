@@ -201,7 +201,7 @@ def _other_peaks(t, f, e, cfg: dict, periods, sr, skip_period: float, count: int
 
 def search_additional(time, flat, flux_err, period, t0, t14_days, cfg: dict, sigma: float, max_signals: int = 1,
                       m_star: float = 1.0, r_star: float = 1.0, trace: list | None = None,
-                      flux_raw: np.ndarray | None = None) -> list[dict]:
+                      flux_raw: np.ndarray | None = None, on_pass=None) -> list[dict]:
     """Remove each detected signal in turn and search what is left for further periodic dips.
 
     A transit-like signal is masked; if it also has structure away from its dip (a secondary eclipse or
@@ -235,8 +235,15 @@ def search_additional(time, flat, flux_err, period, t0, t14_days, cfg: dict, sig
         work = flux_raw / savgol_detrend(time, flux_raw, cfg["detrend_window_days"], int(cfg["detrend_polyorder"]))[0]
     spent, removed_other = 0, 0
     max_other = int(cfg.get("max_variability_removals", 5))
+    passes = 0
     while spent < max_signals and removed_other <= max_other:
         p_last, t_last, d_last, kind = known[-1]
+        passes += 1
+        if on_pass:
+            what = ("the transit just measured" if passes == 1 and kind == "dip" else
+                    f"the star's own variation at {p_last:.2f} days" if kind == "wave" else f"the signal at {p_last:.2f} days")
+            on_pass(passes, max_signals + max_other, f"Looking for more planets, pass {passes}: took out {what} and searching what is left"
+                    + (f" ({len(found)} more found so far)." if found else "."))
         x = (time - t_last + 0.5 * p_last) % p_last - 0.5 * p_last
         if cfg.get("subtract_known_signals", 1):
             # Fine enough to follow the waveform, but never so fine that a bin holds too few cadences: sparse

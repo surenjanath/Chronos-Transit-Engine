@@ -196,7 +196,8 @@ def execute_run(run_id: str) -> None:
         if old.id != target.id and not old.runs.exists():
             old.delete()
 
-        results, arrays = core.process(data, cfg, log, lambda name, frac: update(stage=name, progress=round(frac, 3)))
+        results, arrays = core.process(data, cfg, log, lambda name, frac: update(stage=name, progress=round(frac, 3)),
+                                       lambda text: live_notes.__setitem__(run_id, text))
         results["metadata"] = clean(data.meta)
         if config["source"] in ("mast", "benchmark"):  # what does the NASA Exoplanet Archive already know about this star?
             try:
@@ -410,6 +411,8 @@ def overview() -> dict:
 # ---------------------------------------------------------------------------
 # Model training and system verification jobs
 # ---------------------------------------------------------------------------
+
+live_notes: dict[str, str] = {}  # run id -> what the pipeline is doing right now, in plain words
 
 train_state = {"status": "idle", "stage": "", "progress": 0.0, "error": ""}
 _job_lock = threading.Lock()
