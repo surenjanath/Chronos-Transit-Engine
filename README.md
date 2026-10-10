@@ -335,19 +335,21 @@ residuals are white) and `remove_periodic_variability` (divide out a non-transit
 - **Variable stars.** Of 85 planets injected into variable stars and detectable in principle, 84 are found (80 before
   the fixes below) and 72 are also called planets by the classifier; the others are found and called a binary or
   noise. The one miss has a signal-to-noise of 9.5 against its star's own noise: the right period is examined and
-  judged not significant. With nothing injected, 4 of 80 stars get an extra signal, as before, but every further
+  judged not significant. Lowering that bar from 6 to 5 does catch it, but the classifier then calls it a binary
+  anyway, and stars given a false extra "planet" rise from 1 to 3 of 80, one of them into the vetting queue; so the bar
+  stays at 6. With nothing injected, 4 of 80 stars get an extra signal, as before, but every further
   signal is now classified: three of the four are called a binary or noise, and one (a 28.5-day signal, P(planet)
   0.76) goes to manual review. No star gets a false extra signal in the vetting queue.
 - **Speed.** A four-year Kepler star (60,000 cadences) now takes 15 s when quiet and 25–40 s when variable, down from
   27 s and 60–140 s on the same stars and machine. Two inner loops were rewritten: the period search (2.9 times faster,
   periodogram bit-for-bit identical) and the ephemeris refinement (7 times faster, same period to 13 digits). 3–5 s of a
   Kepler run is spent fetching pixel files. A 27-day TESS sector takes a few seconds.
-- **The map.** 4,205 of the 6,427 planets are drawn where they are on their orbit today, from a measured transit time
+- **The map.** 4,205 of the 6,432 planets are drawn where they are on their orbit today, from a measured transit time
   and period; the rest have no transit time, or a period too uncertain to say where they are by now. The measured tilt
   of each orbit to our line of sight is listed (4,840 planets have one); which way an orbit is turned around that line
-  has not been measured for any planet, so orbits are drawn from above. 18 planets are left off because no distance has
-  been measured for their stars: pulsars, microlensing hosts, brown dwarfs, and a few faint Kepler stars with no Gaia
-  parallax.
+  has not been measured for any planet, so orbits are drawn from above. 13 planets are left off because no distance has
+  been measured for their stars: two microlensing hosts, an X-ray binary, three brown dwarfs or young stars, and seven
+  faint stars with no usable Gaia parallax.
 - **Kepler only for the pixel check and the accuracy figures.** TESS and K2 runs work and pass the golden targets, but
   the classifier's accuracy there is not measured on a labelled set.
 
@@ -358,8 +360,10 @@ residuals are white) and `remove_periodic_variability` (divide out a non-transit
 - **KOI-143.01**, which the archive lists as a false positive, used to reach the vetting queue. It is a held-out star
   and is now called an eclipsing binary, with P(planet) = 0.03.
 - **WASP-12 b** scored 0.942, under the 0.95 golden-target bar. It now scores 0.988.
-- **The map** drew no planets on their orbits and left 28 planets off. Ten of those are now placed from a measured
-  parallax (nine from Gaia DR3, matched by position and brightness; one already in the archive).
+- **The map** drew no planets on their orbits and left 28 planets off. Fifteen of those are now placed: nine from
+  a Gaia DR3 parallax matched by position and brightness, one from a parallax already in the archive, and five from
+  distances measured elsewhere (a published parallax, a companion star's parallax, and the distances of two globular
+  clusters and a star-forming cloud). The map says where each such distance comes from.
 - **Variable stars: two bugs in the further-signal search.** A planet whose period happened to be a whole multiple of
   a stellar-variability period already removed was discarded as a leftover of it, however clear its dips. And after a
   strongly variable star's waveform was divided out, the baseline could sit a few percent above 1, which left the

@@ -70,6 +70,8 @@ def build_systems(rows: list[dict]) -> dict:
         dist_pc = r.get("sy_dist")
         if dist_pc is None and r.get("sy_plx") and float(r["sy_plx"]) > 0:
             dist_pc = 1000.0 / float(r["sy_plx"])  # no adopted distance, but a measured parallax gives one
+        if dist_pc is None and name in MEASURED_ELSEWHERE:
+            dist_pc, r["distance_from"] = MEASURED_ELSEWHERE[name]
         if dist_pc is None or r.get("ra") is None or r.get("dec") is None:
             unplaced[name] = unplaced.get(name, 0) + 1
             continue
@@ -118,6 +120,15 @@ def build_systems(rows: list[dict]) -> dict:
 
 
 GAIA_TAP = "https://gea.esac.esa.int/tap-server/tap/sync"
+# Hosts with no distance in the archive and no usable Gaia entry of their own, whose distance has nevertheless been
+# measured: parsecs, and what the measurement is. Kept short on purpose - only cases where the source is unambiguous.
+MEASURED_ELSEWHERE = {
+    "Luhman 16 A": (1.996, "trigonometric parallax (Sahlmann & Lazorenko 2015)"),
+    "PSR B1620-26": (1850.0, "distance of its globular cluster, M4 (Baumgardt & Vasiliev 2021)"),
+    "M62H": (6410.0, "distance of its globular cluster, M62 (Baumgardt & Vasiliev 2021)"),
+    "CFHTWIR-Oph 98 A": (137.0, "distance of its star-forming cloud, Ophiuchus (Ortiz-Leon et al. 2018)"),
+    "CD-35 2722 B": (22.36, "Gaia DR3 parallax of its companion star, CD-35 2722 A"),
+}
 
 
 def gaia_parallax(ra: float, dec: float, magnitude: float, timeout: float = 30.0) -> float | None:
