@@ -79,8 +79,16 @@ def bls_periodogram(
     cr = np.zeros(nbins + kmax + 1)
     cs = np.zeros(nbins + kmax + 1)
     step = max(1, len(periods) // 50)
+    # The loop below runs tens of thousands of times over every sample, so it reuses its buffers.
+    phase = np.empty_like(tt)
+    whole = np.empty_like(tt)
+    idx = np.empty(len(tt), dtype=np.intp)
     for j, period in enumerate(periods):
-        idx = ((tt / period) % 1.0 * nbins).astype(np.intp)
+        np.divide(tt, period, out=phase)  # orbits elapsed; dropping the whole turns leaves the phase
+        np.floor(phase, out=whole)        # (x - floor(x) is exactly x % 1 for these positive values, and many times faster)
+        phase -= whole
+        phase *= nbins
+        idx[:] = phase
         np.minimum(idx, nbins - 1, out=idx)
         rb = np.bincount(idx, weights, nbins)
         sb = np.bincount(idx, wy, nbins)
