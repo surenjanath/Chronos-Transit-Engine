@@ -302,3 +302,32 @@ def test_map_places_real_positions_only(client, tmp_path, monkeypatch):
     assert abs(data["systems"][0]["d"] - 2.0 * galaxy.LY_PER_PC) < 1e-3
     assert 160 < page.context["ctx"]["voyager1"]["au"] < 200 and page.context["ctx"]["radio_ly"] > 100
     galaxy._cache.clear()
+
+
+def test_signal_check_page_api_and_batch(client):
+    from cte import signalcheck
+    if not signalcheck.available():
+        assert "has not been trained" in client.get(reverse("signal_check")).content.decode()
+        assert client.get(reverse("signal_check_score"), {"period_days": 3, "depth_ppm": 500, "duration_hours": 2}).status_code == 503
+        return
+    binary = {"period_days": 5.318, "depth_ppm": 85000, "duration_hours": 4.6, "snr": 900, "n_transits": 250, "t_eff_k": 5900,
+              "r_star_solar": 1.1, "m_star_solar": 1.05, "odd_even_sigma": 14, "secondary_sigma": 40, "secondary_depth_ppm": 21000}
+    small = {"period_days": 12.3, "depth_ppm": 420, "duration_hours": 3.9, "snr": 28, "n_transits": 110, "t_eff_k": 5600,
+             "r_star_solar": 0.95, "m_star_solar": 0.93, "odd_even_sigma": 0.6, "secondary_sigma": 0.3, "secondary_depth_ppm": 5, "centroid_sigma": 0.5}
+    out = client.get(reverse("signal_check_score"), binary).json()
+    assert out["prediction"] == "ECLIPSING_BINARY" and out["p_planet"] < 0.05 and out["notes"]
+    assert sum(out["probabilities"].values()) == pytest.approx(1.0, abs=1e-3)
+    out = client.get(reverse("signal_check_score"), small).json()
+    assert out["prediction"] == "PLANET_CANDIDATE" and out["physics"]["radius_earth"] == pytest.approx(2.12, abs=0.05)
+    three = client.get(reverse("signal_check_score"), {"period_days": 9.5, "depth_ppm": 2200, "duration_hours": 2.8}).json()
+    assert not three["moved"] and "the star" in three["missing"] and not three["physics"]
+    assert client.get(reverse("signal_check_score"), {"period_days": 3}).status_code == 422
+    assert client.get(reverse("signal_check_score"), dict(small, m_star_solar="")).status_code == 422  # radius without mass
+    page = client.get(reverse("signal_check"), dict(binary, record=1), follow=True).content.decode()
+    assert "likely eclipsing binary" in page and "Jupiter radii" in page
+    assert LogEvent.objects.filter(stage="SIGNAL_CHECK", telemetry__origin="signal_check").exists()
+    table = io.BytesIO(b"# from the archive\nkepoi_name,koi_period,koi_depth,koi_duration,koi_srad,koi_smass\nK1,12.3,420,3.9,0.95,0.93\nK2,5,-4,2,,\n")
+    table.name = "koi.csv"
+    rows = client.post(reverse("signal_check_batch"), {"table": table}).content.decode().strip().splitlines()
+    assert len(rows) == 3 and rows[1].startswith("1,K1,12.3,420.0,3.9") and "depth_ppm" in rows[2].split(",")[-1]
+    assert client.post(reverse("signal_check_batch"), {}).status_code == 302

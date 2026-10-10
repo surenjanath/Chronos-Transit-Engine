@@ -11,14 +11,14 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_GET, require_POST
 
-from cte import core, galaxy, ingest, model
+from cte import core, galaxy, ingest, model, signalcheck
 from cte.config import ARCHIVE_DIR, DEFAULT_PIPELINE, LOG_DIR, TOLERANCES
 from cte.physics import StellarParameters, derive
 from cte.synthetic import a_over_rstar, transit_flux
 from cte.telemetry import verify_jsonl
 
 from . import autopilot, services
-from .forms import CalculatorForm, NewRunForm, SettingsForm, VettingForm
+from .forms import CalculatorForm, NewRunForm, SettingsForm, SignalCheckForm, VettingForm
 from .models import CLASS_LABELS, DISPOSITIONS, AutomationCycle, LogEvent, Run, Target, ValidationRun
 
 
@@ -370,6 +370,108 @@ def calculator_compute(request):
     if not form.is_valid():
         return JsonResponse({"errors": form.errors}, status=422)
     return JsonResponse(compute_physics(form.cleaned_data))
+
+
+# ---------------------------------------------------------------------------
+# Signal check: a verdict from catalogue parameters alone
+# ---------------------------------------------------------------------------
+
+CHECK_PRESETS = [
+    ("Hot Jupiter", {"period_days": 3.5247, "depth_ppm": 14600, "duration_hours": 3.0, "snr": 300, "n_transits": 100, "t_eff_k": 6065,
+                     "r_star_solar": 1.155, "m_star_solar": 1.119, "odd_even_sigma": 0.5, "secondary_sigma": 0.5, "secondary_depth_ppm": 20, "centroid_sigma": 0.4}),
+    ("Small planet", {"period_days": 12.3, "depth_ppm": 420, "duration_hours": 3.9, "snr": 28, "n_transits": 110, "t_eff_k": 5600,
+                      "r_star_solar": 0.95, "m_star_solar": 0.93, "odd_even_sigma": 0.6, "secondary_sigma": 0.3, "secondary_depth_ppm": 5, "centroid_sigma": 0.5}),
+    ("Eclipsing binary", {"period_days": 5.318, "depth_ppm": 85000, "duration_hours": 4.6, "snr": 900, "n_transits": 250, "t_eff_k": 5900,
+                          "r_star_solar": 1.1, "m_star_solar": 1.05, "odd_even_sigma": 14, "secondary_sigma": 40, "secondary_depth_ppm": 21000, "centroid_sigma": 0.8}),
+    ("Neighbouring star", {"period_days": 4.1057, "depth_ppm": 3000, "duration_hours": 3.4, "snr": 80, "n_transits": 300, "t_eff_k": 5700,
+                           "r_star_solar": 1.0, "m_star_solar": 1.0, "odd_even_sigma": 1.0, "secondary_sigma": 6, "secondary_depth_ppm": 400, "centroid_sigma": 9}),
+    ("Three numbers only", {"period_days": 9.4862, "depth_ppm": 2200, "duration_hours": 2.8}),
+]
+# column names accepted in an uploaded table: ours, and those of NASA's KOI and TCE tables
+CHECK_COLUMNS = {
+    "period_days": ("period_days", "period", "koi_period", "tce_period", "pl_orbper"),
+    "depth_ppm": ("depth_ppm", "depth", "koi_depth", "tce_depth"),
+    "duration_hours": ("duration_hours", "duration", "koi_duration", "tce_duration"),
+    "snr": ("snr", "koi_model_snr", "tce_model_snr"), "n_transits": ("n_transits", "koi_num_transits", "tce_num_transits"),
+    "t_eff_k": ("t_eff_k", "teff", "koi_steff", "tce_steff", "st_teff"), "r_star_solar": ("r_star_solar", "koi_srad", "tce_sradius", "st_rad"),
+    "m_star_solar": ("m_star_solar", "koi_smass", "tce_smass", "st_mass"), "odd_even_sigma": ("odd_even_sigma",),
+    "secondary_sigma": ("secondary_sigma",), "secondary_depth_ppm": ("secondary_depth_ppm",), "centroid_sigma": ("centroid_sigma",),
+}
+CHECK_NAME_COLUMNS = ("name", "kepoi_name", "kepler_name", "pl_name", "toi", "kepid", "id")
+CHECK_BATCH_LIMIT = 5000
+
+
+def _check_inputs(cleaned: dict) -> dict:
+    return {k: v for k, v in cleaned.items() if v is not None}
+
+
+def signal_check(request):
+    ready = signalcheck.available()
+    form = SignalCheckForm(request.GET) if request.GET else SignalCheckForm()
+    result = None
+    if ready and form.is_bound and form.is_valid():
+        inputs = _check_inputs(form.cleaned_data)
+        result = signalcheck.assess(**inputs)
+        result["bars"] = [{"label": CLASS_LABELS[c], "p": p, "width": round(p * 100, 1)} for c, p in result["probabilities"].items()]
+        if request.GET.get("record"):
+            services.system_logger().info("Signal check from catalogue parameters", "SIGNAL_CHECK", inputs=inputs,
+                                          prediction=result["prediction"], probabilities=result["probabilities"],
+                                          origin="signal_check")
+            messages.success(request, "Assessment written to the audit log.")
+    return render(request, "pages/check.html", {"form": form, "result": result, "ready": ready, "presets": CHECK_PRESETS,
+                                                "metrics": signalcheck.load_metrics(), "batch_limit": CHECK_BATCH_LIMIT,
+                                                "page_title": "Signal check"})
+
+
+@require_GET
+def signal_check_score(request):
+    if not signalcheck.available():
+        return JsonResponse({"error": "The signal-check model has not been trained."}, status=503)
+    form = SignalCheckForm(request.GET)
+    if not form.is_valid():
+        return JsonResponse({"errors": form.errors}, status=422)
+    return JsonResponse(signalcheck.assess(**_check_inputs(form.cleaned_data)))
+
+
+@require_POST
+def signal_check_batch(request):
+    """Score every row of an uploaded table and send it back with the verdict added."""
+    upload = request.FILES.get("table")
+    if not signalcheck.available() or upload is None:
+        messages.error(request, "Choose a CSV file to score." if upload is None else "The signal-check model has not been trained.")
+        return redirect("signal_check")
+    try:
+        text = upload.read(8_000_000).decode("utf-8-sig")
+    except UnicodeDecodeError:
+        messages.error(request, "That file is not text. Upload a CSV.")
+        return redirect("signal_check")
+    lines = [ln for ln in text.splitlines() if ln.strip() and not ln.startswith("#")]  # NASA archive files open with # comments
+    reader = csv.DictReader(lines)
+    names = {(n or "").strip().lower(): n for n in (reader.fieldnames or [])}
+    column = {key: next((names[a] for a in aliases if a in names), None) for key, aliases in CHECK_COLUMNS.items()}
+    absent = [k for k in SignalCheckForm.REQUIRED if column[k] is None]
+    if absent:
+        messages.error(request, f"The table needs columns for {', '.join(absent)}. Found: {', '.join(reader.fieldnames or []) or 'none'}.")
+        return redirect("signal_check")
+    label = next((names[n] for n in CHECK_NAME_COLUMNS if n in names), None)
+    response = HttpResponse(content_type="text/csv")
+    response["Content-Disposition"] = 'attachment; filename="signal-check.csv"'
+    out = csv.writer(response)
+    out.writerow(["row", "name", *CHECK_COLUMNS, "verdict", "p_planet", "p_binary", "p_noise", "problem"])
+    for i, rec in enumerate(reader, 1):
+        if i > CHECK_BATCH_LIMIT:
+            break
+        form = SignalCheckForm({k: (rec.get(c) or "").strip() for k, c in column.items() if c})
+        name = (rec.get(label) or "").strip() if label else ""
+        if not form.is_valid():
+            problem = "; ".join(f"{k}: {' '.join(v)}" if k != "__all__" else " ".join(v) for k, v in form.errors.items())
+            out.writerow([i, name, *[(rec.get(c) or "") if c else "" for c in column.values()], "", "", "", "", problem])
+            continue
+        r = signalcheck.assess(**_check_inputs(form.cleaned_data))
+        p = r["probabilities"]
+        out.writerow([i, name, *[form.cleaned_data.get(k) if form.cleaned_data.get(k) is not None else "" for k in CHECK_COLUMNS],
+                      r["disposition"], p["PLANET_CANDIDATE"], p["ECLIPSING_BINARY"], p["STELLAR_OR_INSTRUMENT_NOISE"], ""])
+    return response
 
 
 # ---------------------------------------------------------------------------

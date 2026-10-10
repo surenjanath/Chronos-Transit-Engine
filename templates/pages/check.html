@@ -1,0 +1,112 @@
+{% extends "layout.html" %}
+{% load static cte %}
+
+{% block page %}
+      <section class="sheet">
+        <h1 class="sheet-title">Signal check <span class="quiet">· Is it a planet? An answer from the numbers alone, no light curve ·</span></h1>
+        {% if not ready %}
+        <p class="flagline high">The signal-check model has not been trained on this machine. Build the Kepler dataset, then run <code>python manage.py train_signal_check</code>.</p>
+        {% endif %}
+        <div class="split" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr)">
+          <div>
+            <div class="chips" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px" id="checkPresets">
+              {% for name, values in presets %}<button type="button" class="chipbtn sm" data-preset='{{ values|pretty }}'>{{ name }}</button>{% endfor %}
+            </div>
+            <form method="get" id="checkForm" novalidate>
+              {% if form.non_field_errors %}<p class="flagline high">{{ form.non_field_errors|join:" " }}</p>{% endif %}
+              {% for title, note, fields in form.groups %}
+              <fieldset>
+                <legend>{{ title }} <span class="co">{{ note }}</span></legend>
+                <div class="form-grid">
+                  {% for field in fields %}<label><span>{{ field.label }}</span>{{ field }}<span class="help">{{ field.help_text }}</span>{{ field.errors }}</label>{% endfor %}
+                </div>
+              </fieldset>
+              {% endfor %}
+              <div class="actions">
+                <button type="submit" class="sm"{% if not ready %} disabled{% endif %}>Check this signal</button>
+                <button type="submit" class="sm" name="record" value="1" title="Write this assessment to the audit log"{% if not ready %} disabled{% endif %}>Check and record</button>
+                <a href="{% url 'signal_check' %}" class="quiet">Clear</a>
+              </div>
+            </form>
+
+            <div class="panel" style="margin-top:34px">
+              <h3>Many signals at once</h3>
+              <form method="post" action="{% url 'signal_check_batch' %}" enctype="multipart/form-data">{% csrf_token %}
+                <p class="co">Upload a CSV with one signal per row and get it back with a verdict on each. Columns: <code>period_days</code>, <code>depth_ppm</code>, <code>duration_hours</code>, and any of the optional ones by the names in the address bar after a check. A table exported from NASA's Kepler KOI or TCE pages works as it is. Up to {{ batch_limit }} rows.</p>
+                <div class="actions"><input type="file" name="table" accept=".csv,text/csv,text/plain" required> <button type="submit" class="sm"{% if not ready %} disabled{% endif %}>Score the table</button></div>
+              </form>
+            </div>
+          </div>
+
+          <div>
+            {% if result %}
+            <span class="tiny">Probability this is a planet</span>
+            <div class="hero">
+              <i class="hero-bar" aria-hidden="true"></i>
+              <div class="hero-num">{{ result.p_planet|num:3 }}</div>
+              <div class="hero-aside"><span>verdict <b>{{ result.disposition }}</b></span></div>
+            </div>
+            {% for b in result.bars %}
+            <div class="meter"><span>{{ b.label }}</span><span class="meter-t"><i style="width:{{ b.width }}%"></i></span><span class="meter-n">{{ b.p|num:2 }}</span></div>
+            {% endfor %}
+
+            {% for note in result.notes %}<p class="flagline high" style="margin-top:14px">{{ note }}</p>{% endfor %}
+
+            {% if result.moved %}
+            <div class="panel" style="margin-top:22px">
+              <h3>What each optional input did to the planet probability</h3>
+              <table>
+                <thead><tr><th>Input</th><th class="num">Change</th><th></th></tr></thead>
+                <tbody>
+                  {% for m in result.moved %}<tr><td>{{ m.label }}</td><td class="num">{% if m.delta_planet > 0 %}+{% endif %}{{ m.delta_planet|num:3 }}</td><td class="co">{% if m.delta_planet > 0.02 %}supports a planet{% elif m.delta_planet < -0.02 %}counts against a planet{% else %}little effect{% endif %}</td></tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+              <p class="legend-note">The probability with the input, minus the probability with that input left blank.</p>
+            </div>
+            {% endif %}
+
+            {% if result.physics %}
+            <div class="figures small" style="margin-top:22px">
+              <div><div class="fig-label">Size of the body</div><div class="fig-value">{{ result.physics.radius_earth|num:2 }} <span class="fig-detail">R⊕</span></div><div class="fig-sub">{{ result.physics.radius_jupiter|num:2 }} R_Jup</div></div>
+              <div><div class="fig-label">Orbit</div><div class="fig-value">{{ result.physics.semi_major_axis_au|num:4 }} <span class="fig-detail">AU</span></div><div class="fig-sub">{{ result.physics.a_over_rstar|num:1 }} star radii</div></div>
+              <div><div class="fig-label">Duration against a central transit</div><div class="fig-value">{{ result.physics.duration_ratio|num:2 }}<span class="fig-detail">×</span></div><div class="fig-sub">expected {{ result.physics.transit_duration_hours|num:2 }} h</div></div>
+              {% if result.physics.equilibrium_temp_k %}<div><div class="fig-label">Temperature</div><div class="fig-value">{{ result.physics.equilibrium_temp_k|num:0 }} <span class="fig-detail">K</span></div><div class="fig-sub">{{ result.physics.insolation_earth|num:1 }} × Earth's sunlight</div></div>{% endif %}
+            </div>
+            {% endif %}
+
+            {% if result.missing %}<p class="co" style="margin-top:14px">Left blank: {{ result.missing|join:", " }}. The answer gets sharper with each one filled in.</p>{% endif %}
+            {% elif ready %}
+            <p class="warn-line">Enter a period, a depth and a duration, or pick an example.</p>
+            <p class="co">The model compares the signal with thousands of labelled signals on real Kepler stars and says how ones like it turned out.</p>
+            {% endif %}
+
+            {% if metrics %}
+            <div class="panel" style="margin-top:28px">
+              <h3>How far to trust it · measured on {{ metrics.n_test }} held-out Kepler stars</h3>
+              <table>
+                <thead><tr><th>Inputs given</th><th class="num">Planet or not, right</th><th class="num">AUC</th><th class="num">Planets called planets</th><th class="num">Others called planets</th></tr></thead>
+                <tbody>
+                  {% for l in metrics.levels %}<tr><td>{{ l.name }}</td><td class="num">{{ l.planet_or_not|pct }}</td><td class="num">{{ l.auc_planet|num:3 }}</td><td class="num">{{ l.planets_called.0 }} of {{ l.planets_called.1 }}</td><td class="num">{{ l.others_called_planet.0 }} of {{ l.others_called_planet.1 }}</td></tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+              <p class="legend-note">Fitted on {{ metrics.n_train_examples }} labelled signals from {{ metrics.n_train_stars }} Kepler stars. It has seen Kepler signals only: periods under about two years, detections above S/N 10, Sun-like and cooler stars. It is a first look, less accurate than the full analysis of the light curve, and never a confirmation. To analyse the photometry itself, start a <a href="{% url 'new' %}">new analysis</a>.</p>
+            </div>
+            {% endif %}
+          </div>
+        </div>
+      </section>
+{% endblock %}
+
+{% block page_js %}
+<script>
+document.querySelectorAll('#checkPresets [data-preset]').forEach(function (b) {
+  b.addEventListener('click', function () {
+    var v = JSON.parse(b.dataset.preset), f = document.getElementById('checkForm');
+    f.querySelectorAll('input[type=number],input[type=text]').forEach(function (i) { i.value = v[i.name] === undefined ? '' : v[i.name]; });
+    f.submit();
+  });
+});
+</script>
+{% endblock %}

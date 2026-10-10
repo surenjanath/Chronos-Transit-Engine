@@ -175,6 +175,40 @@ class CalculatorForm(forms.Form):
     bond_albedo = forms.FloatField(min_value=0, max_value=0.99, initial=0.3)
 
 
+class SignalCheckForm(forms.Form):
+    """A signal described by its catalogue parameters. Only the first three are needed."""
+    period_days = forms.FloatField(min_value=0.05, max_value=2000, label="Orbital period", help_text="days")
+    depth_ppm = forms.FloatField(min_value=1, max_value=999999, label="Transit depth", help_text="parts per million (1% = 10,000)")
+    duration_hours = forms.FloatField(min_value=0.05, max_value=100, label="Transit duration", help_text="hours, first to last contact")
+    snr = forms.FloatField(min_value=0, max_value=1e6, required=False, label="Signal-to-noise", help_text="of all transits together")
+    n_transits = forms.FloatField(min_value=1, max_value=1e5, required=False, label="Transits observed", help_text="how many dips were seen")
+    t_eff_k = forms.FloatField(min_value=1001, max_value=59999, required=False, label="Star temperature", help_text="K")
+    r_star_solar = forms.FloatField(min_value=0.011, max_value=199, required=False, label="Star radius", help_text="Suns")
+    m_star_solar = forms.FloatField(min_value=0.011, max_value=99, required=False, label="Star mass", help_text="Suns")
+    odd_even_sigma = forms.FloatField(min_value=0, max_value=1e4, required=False, label="Odd/even depth difference", help_text="in sigma")
+    secondary_sigma = forms.FloatField(min_value=-100, max_value=1e4, required=False, label="Secondary eclipse significance", help_text="in sigma, at phase 0.5")
+    secondary_depth_ppm = forms.FloatField(min_value=-1e5, max_value=999999, required=False, label="Secondary eclipse depth", help_text="parts per million")
+    centroid_sigma = forms.FloatField(min_value=0, max_value=1e4, required=False, label="Centroid shift in transit", help_text="in sigma")
+
+    REQUIRED = ("period_days", "depth_ppm", "duration_hours")
+
+    def groups(self):
+        get = lambda *names: [self[n] for n in names]
+        return [("The signal", "Needed.", get(*self.REQUIRED)),
+                ("How well it was seen", "Optional.", get("snr", "n_transits")),
+                ("The star", "Optional. Radius and mass are needed together; they turn the depth into a size.", get("t_eff_k", "r_star_solar", "m_star_solar")),
+                ("Vetting measurements", "Optional. These separate planets from eclipsing binaries best.",
+                 get("odd_even_sigma", "secondary_sigma", "secondary_depth_ppm", "centroid_sigma"))]
+
+    def clean(self):
+        data = super().clean()
+        if (data.get("r_star_solar") is None) != (data.get("m_star_solar") is None):
+            raise forms.ValidationError("Give the star's radius and mass together, or neither.")
+        if data.get("period_days") and data.get("duration_hours") and data["duration_hours"] / 24.0 >= 0.5 * data["period_days"]:
+            raise forms.ValidationError("The transit cannot last half the orbit or more.")
+        return data
+
+
 class VettingForm(forms.Form):
     status = forms.ChoiceField(choices=[("pending", "pending"), ("confirmed", "confirmed"), ("false_positive", "false_positive")])
     note = forms.CharField(max_length=2000, required=False, strip=True)

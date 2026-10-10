@@ -7,7 +7,7 @@ from .models import Run, Target
 
 NAV = [("overview", "Overview"), ("targets", "Targets"), ("runs", "Runs"), ("vetting", "Vetting"), ("atlas", "Atlas"), ("map", "Map"),
        ("benchmark", "Benchmark"), ("automation", "Automation"), ("validation", "Validation"), ("logs", "Audit log"), ("new", "New analysis"),
-       ("calculator", "Calculator"), ("settings", "Settings"), ("method", "Method")]
+       ("signal_check", "Signal check"), ("calculator", "Calculator"), ("settings", "Settings"), ("method", "Method")]
 PAGE_OF = {"target": "targets", "run": "runs"}
 
 
