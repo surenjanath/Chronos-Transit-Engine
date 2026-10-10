@@ -300,14 +300,15 @@ shape-derived impact parameter and stellar density, light curve with trend, BLS 
 nearest stars and the Kepler field to the whole Galaxy. Every one of the ~4,800 host stars is placed from its
 measured sky position and distance in the NASA Exoplanet Archive (`cte/galaxy.py`, cached in
 `data/catalog/systems.json`, refreshed from the page). Nothing is invented: planets with no measured distance are
-counted and left off; orbits are drawn to scale in size but face-on, because their orientation and each planet's
-position today are not in the catalogue.
+counted and left off; orbits are drawn to scale in size, seen from above, because their orientation on the sky is not in the catalogue.
 
 - Three viewpoints: the Galaxy from above, edge-on, and the sky as seen from Earth.
 - Select a star for its distance, the year its light left, travel times (light, Voyager 1, Parker Solar Probe, an
   airliner), its planets with sizes to scale, and its orbits beside Earth's orbit and the liquid-water zone.
 - "Travel there from Earth" animates the whole way out. Search finds any star or planet by name.
 - Stars analysed by this engine are highlighted, and target and run pages link to their place on the map.
+- A dot on each orbit shows where the planet is today: the Solar System from mean motions, other systems by counting
+  orbits since a measured transit, when the planet stood on the line from its star to the Sun.
 
 ## Period aliases
 
@@ -320,7 +321,8 @@ this raised exact period recovery from 24 to 27 of 30.
 
 The period search splits its trial periods across CPU cores using a pool of worker processes that is started on the
 first run and reused. The primary search of a six-quarter Kepler star (22,000 cadences, 60,000 trial periods) takes about 7 s,
-against 43 s single-threaded; the periodogram is bit-for-bit identical. `CTE_BLS_WORKERS=1` forces the serial path.
+against 43 s single-threaded; the periodogram is bit-for-bit identical. (Those timings predate a rewrite of the inner loop that made
+both paths about 2.9 times faster, again with an identical periodogram.) `CTE_BLS_WORKERS=1` forces the serial path.
 
 Two experimental options exist and are off by default because they measured no benefit (17 of 36 injected planets
 recovered on variable Kepler stars either way): `adaptive_detrend` (shorten the Savitzky-Golay window until the
@@ -328,19 +330,28 @@ residuals are white) and `remove_periodic_variability` (divide out a non-transit
 
 ## Known limits
 
-- **Kepler-8 b sits in manual review at 0.899, a hair under the 0.90 queue threshold.** Among real Kepler signals
-  deeper than 0.5% the sample holds 159 false positives and 22 planets, so a deep, high-impact transit is
-  ambiguous on shape alone (the network gives it 0.25). Review is the calibrated answer, not a bug.
-- **KOI-143.01 reaches the vetting queue although the archive lists it as a false positive**. (The benchmark's other "false positive in the queue", TCE 6851425-1, carries an outdated label: the engine scored it 0.948 planet, and NASA's current catalogue lists it as the confirmed planet Kepler-477 b.) The archive rejects
-  it for a secondary eclipse. In all seventeen quarters this engine measures none (−0.9σ at phase 0.5, no
-  significant dip at any other phase) and equal odd and even depths (0.2σ), so the photometry it has cannot
-  reject it.
 - **Variable stars.** Two of 48 injected planets are still missed, and 2 of 45 variable stars get a spurious extra
-  signal. Additional signals are candidates for inspection, not classified detections.
-- **Speed.** A four-year Kepler star (60,000 cadences) takes 40–190 s end to end, most of it in the further-signal
-  search on variable stars. A 27-day TESS sector takes a few seconds.
-- **The map.** Orbits are drawn face-on and planets are not placed along them: orientation and present position are
-  not in the catalogue. 28 planets with no measured distance are left off.
+  signal. Both misses have a signal-to-noise near 10 against the star's own correlated noise; in one the right period
+  was examined and judged not significant. Loosening that test to catch them would raise the spurious rate, so the
+  balance is left where it is. Additional signals are candidates for inspection, not classified detections.
+- **Speed.** A four-year Kepler star (60,000 cadences) takes about half a minute, longer on variable stars where the
+  further-signal search makes several passes. The period search is 2.9 times faster than it was, with a bit-for-bit
+  identical periodogram (Kepler-8 end to end: 44 s before, 32 s after, on a machine busy with other work). A Kepler
+  run also spends 5–10 s fetching pixel files. A 27-day TESS sector takes a few seconds.
+- **The map.** 4,202 of 6,418 planets are drawn where they are on their orbit today, from a measured transit time and
+  period; the rest have no transit time, or a period too uncertain to say where they are by now. Which way an orbit is
+  turned on the sky is not in the catalogue. 27 planets with neither a distance nor a parallax are left off.
+- **Kepler only for the pixel check and the accuracy figures.** TESS and K2 runs work and pass the golden targets, but
+  the classifier's accuracy there is not measured on a labelled set.
+
+**Cleared in this version**
+
+- **Kepler-8 b** sat in manual review at 0.899. It now scores 0.987 and goes to the vetting queue (0.984 from a model
+  that never saw the star in training).
+- **KOI-143.01**, which the archive lists as a false positive, used to reach the vetting queue. It is a held-out star
+  and is now called an eclipsing binary, with P(planet) = 0.03.
+- **WASP-12 b** scored 0.942, under the 0.95 golden-target bar. It now scores 0.988.
+- **The map** drew no planets on their orbits and left 28 planets off. See above.
 
 ## Notes on the PRD
 
