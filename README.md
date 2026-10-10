@@ -146,8 +146,8 @@ is slightly lower on period recovery, class agreement and AUC.
 | Quiet stars, injected S/N ≥ 10 | 98% recovered |
 | Quiet stars, at the 7.1 detection threshold | 50% |
 | Quiet stars, below S/N 4.5 | 4% (the false-alarm floor) |
-| Variable stars, second planet behind the star's own signal | 93 of 96 (84 of the 85 detectable in principle) |
-| Variable stars, nothing injected: stars given an extra signal · one the classifier calls a planet | 4 of 80 · 1 of 80 |
+| Variable stars, second planet behind the star's own signal | 135 of 144 (120 of the 124 detectable in principle) |
+| Variable stars, nothing injected: stars given an extra signal · one the classifier calls a planet | 2 of 105 · 1 of 105 |
 
 **PRD acceptance criteria** (`manage.py verify`): period error 4.6 × 10⁻⁵ (limit 10⁻⁴), depth 3.25% (limit 5%), radius
 3.78% (limit 5%), log integrity 100%. **Golden targets**: 12 of 12 assertions hold, including all six TRAPPIST-1
@@ -226,8 +226,8 @@ It is off by default. Each cycle and each training run is logged and listed on t
   star's wiggles at other phases), or a further transit-like signal. Only the last is reported; the others are
   divided out and the search repeats, so rotation or pulsation can neither use up the budget nor hide a planet.
   A further signal must stand out against the star's correlated noise, not just white noise. The page lists every
-  peak examined and what was decided. Measured on variable stars: 93 of 96 injected planets recovered, 84 of the 85 detectable in principle (the
-  first version of this search recovered about half), with an extra signal on 4 of 80 stars when nothing is injected, one of them called a planet.
+  peak examined and what was decided. Measured on variable stars: 135 of 144 injected planets recovered, 120 of the 124 detectable in principle (the
+  first version of this search recovered about half), with an extra signal on 2 of 105 stars when nothing is injected, one of them called a planet.
 - **Second dip at any phase.** A model-shift test scans the whole orbit for a second dip, as the Kepler Robovetter
   does; an eccentric binary's secondary eclipse need not sit at phase 0.5. It counts against a planet only when it
   is too bright for a planet to produce (albedo above 1), so a hot Jupiter's real occultation is not held against
@@ -332,14 +332,14 @@ residuals are white) and `remove_periodic_variability` (divide out a non-transit
 
 ## Known limits
 
-- **Variable stars.** Of 85 planets injected into variable stars and detectable in principle, 84 are found (80 before
-  the fixes below) and 72 are also called planets by the classifier; the others are found and called a binary or
-  noise. The one miss has a signal-to-noise of 9.5 against its star's own noise: the right period is examined and
-  judged not significant. Lowering that bar from 6 to 5 does catch it, but the classifier then calls it a binary
-  anyway, and stars given a false extra "planet" rise from 1 to 3 of 80, one of them into the vetting queue; so the bar
-  stays at 6. With nothing injected, 4 of 80 stars get an extra signal, as before, but every further
-  signal is now classified: three of the four are called a binary or noise, and one (a 28.5-day signal, P(planet)
-  0.76) goes to manual review. No star gets a false extra signal in the vetting queue.
+- **Variable stars.** Across three sets of 48 injections into variable stars, 120 of the 124 planets detectable in
+  principle are found, and 103 are also called planets by the classifier (the rest are found and called a binary or
+  noise). The four misses: one at a signal-to-noise of 9.5 against its star's own noise, judged not significant
+  (lowering that bar catches it but triples the false planets, so the bar stays); one whose period is within 3% of the
+  star's own variability period and is taken for it; and two small planets on an eclipsing binary whose leftovers fill
+  the search's shortlist. With nothing injected, 2 of 105 stars get an extra signal: one the classifier calls a binary,
+  and one (a 28.5-day signal, P(planet) 0.76) that goes to manual review. No star gets a false extra signal in the
+  vetting queue.
 - **Speed.** A four-year Kepler star (60,000 cadences) now takes 15 s when quiet and 25–40 s when variable, down from
   27 s and 60–140 s on the same stars and machine. Two inner loops were rewritten: the period search (2.9 times faster,
   periodogram bit-for-bit identical) and the ephemeris refinement (7 times faster, same period to 13 digits). 3–5 s of a
@@ -369,6 +369,11 @@ residuals are white) and `remove_periodic_variability` (divide out a non-transit
   strongly variable star's waveform was divided out, the baseline could sit a few percent above 1, which left the
   period search nearly blind. On the original 48 trials recovery of detectable planets went from 42 to 43 of 44; on 48
   fresh trials from 38 to 41 of 41.
+- **False extra signals on variable stars.** A transit is the same depth every time; a "dip" piled up by folding a
+  star's irregular variations is carried by a few deep events. A further signal whose single-event depths scatter by a
+  reduced chi-squared above 15 is now rejected (injected planets scatter by 2 to 13, the false signals by 37 to 190).
+  On the two trial sets used to find the rule, stars with an extra signal fell from 4 to 2 of 80; on a third, fresh
+  set, recovery of injected planets was the same with and without it.
 - **"Additional signals are not classified."** They are now: each further signal is cut out from the others, detrended
   again, and put through the same vetting and classifier as the first, and the run page gives its verdict.
 - **Speed**: see above.

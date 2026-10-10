@@ -199,6 +199,33 @@ def _other_peaks(t, f, e, cfg: dict, periods, sr, skip_period: float, count: int
     return out
 
 
+def event_consistency(t, f, period: float, t0: float, duration: float, sigma: float) -> tuple[float, float]:
+    """Do the individual events of a periodic dip agree with each other?
+
+    A transit is the same depth every time. A "dip" assembled by folding a star's irregular variations is carried
+    by a few deep events while the others show nothing, or a brightening. Returns the reduced chi-squared of the
+    single-event depths about their mean, and the share of events that are brighter than the baseline by more than
+    twice their own error. Events with under half the usual number of samples (cut by a gap) are left out."""
+    x = np.abs((t - t0 + 0.5 * period) % period - 0.5 * period)
+    inside = x < 0.5 * duration
+    epoch = np.round((t - t0) / period).astype(int)
+    level = float(np.median(f[~inside])) if (~inside).any() else 1.0
+    counts = np.bincount(epoch[inside] - epoch.min())
+    usual = np.median(counts[counts > 0]) if (counts > 0).any() else 0
+    depths, errors = [], []
+    for n in np.unique(epoch[inside]):
+        m = inside & (epoch == n)
+        if m.sum() >= max(2, 0.5 * usual):
+            depths.append(level - float(f[m].mean()))
+            errors.append(sigma / np.sqrt(m.sum()))
+    if len(depths) < 3:
+        return float("nan"), float("nan")
+    depths, errors = np.array(depths), np.array(errors)
+    mean = float(np.sum(depths / errors ** 2) / np.sum(1.0 / errors ** 2))
+    chi2 = float(np.sum(((depths - mean) / errors) ** 2) / (len(depths) - 1))
+    return chi2, float(np.mean(depths < -2.0 * errors))
+
+
 def _is_residue(t, f, res, known_period: float) -> bool:
     """Is this peak a leftover of a signal already dealt with, at `known_period`?
 
@@ -321,6 +348,10 @@ def search_additional(time, flat, flux_err, period, t0, t14_days, cfg: dict, sig
                     "duration_hours": round(res.duration_days * 24.0, 2), "transits": int(epochs), "rank": rank + 1}
             # significant against white noise, and against what this star's residual does at other phases
             red_snr = phase_snr(t, f, res.period, res.t0, res.duration_days) if snr >= 7.1 else 0.0
+            step["phase_snr"] = round(red_snr, 1)
+            chi2, brighter = event_consistency(t, f, res.period, res.t0, res.duration_days, resid_sigma) if snr >= 7.1 else (float("nan"), float("nan"))
+            step["event_chi2"] = None if not np.isfinite(chi2) else round(chi2, 2)
+            step["events_brighter"] = None if not np.isfinite(brighter) else round(brighter, 3)
             white = snr >= 7.1 and epochs >= 2 and depth > 0
             significant = white and red_snr >= float(cfg.get("min_phase_snr", 6.0))
             wiggle = white and red_snr < 5.0  # clearly the star's own behaviour: worth dividing out
@@ -336,12 +367,17 @@ def search_additional(time, flat, flux_err, period, t0, t14_days, cfg: dict, sig
             # The periodogram peak of a long-period signal with few transits is never prominent, so a clearly
             # significant dip (S/N >= 10 over at least three transits) is accepted even when the SDE is modest.
             prominent = res.sde >= cfg["sde_threshold"] or (snr >= 10.0 and epochs >= 3)
+            # A transit is the same depth every time. Folding a star's irregular variations can pile up a "dip" from a
+            # few deep events while the rest show nothing; the single-event depths then scatter far beyond their errors.
+            # Injected planets on variable stars scatter by a reduced chi-squared of 2 to 13, such pile-ups by 37 to 190.
+            erratic = white and np.isfinite(chi2) and chi2 > float(cfg.get("max_event_chi2", 15.0))
             step["outcome"] = ("not significant" if not white else
                                "no deeper than this star's own wiggles at other phases" if wiggle else
                                "not significant" if not significant else
                                "residue of a signal already found" if residue else
                                "longer than any transit of this star could last" if too_long else
                                "smooth variability, not a dip" if wave_like else
+                               "its events disagree with each other" if erratic else
                                "periodogram peak not prominent" if not prominent else "transit-like")
             judged.append((res, depth, snr, epochs, step))
         if trace is not None:
@@ -353,7 +389,7 @@ def search_additional(time, flat, flux_err, period, t0, t14_days, cfg: dict, sig
         # spectrum can be trusted: a strong wave throws up dip-like beats at many other periods. Remove it first.
         top_is_other = judged[0][0] is top and judged[0][4]["outcome"] in (
             "residue of a signal already found", "longer than any transit of this star could last", "smooth variability, not a dip",
-            "no deeper than this star's own wiggles at other phases")
+            "no deeper than this star's own wiggles at other phases", "its events disagree with each other")
         if good and not (top_is_other and removed_other < max_other):
             res, depth, snr, epochs, step = max(good, key=lambda j: j[2])
             step["outcome"] = "further transit-like signal"
@@ -370,7 +406,8 @@ def search_additional(time, flat, flux_err, period, t0, t14_days, cfg: dict, sig
             spent += 1
             found.append({"period_days": round(res.period, 6), "t0": round(res.t0, 5), "depth_ppm": round(depth * 1e6, 1),
                           "duration_hours": round(res.duration_days * 24.0, 3), "snr": round(float(snr), 1), "sde": round(res.sde, 1),
-                          "transits": int(epochs), "period_ratio": round(res.period / period, 4), "phase_snr": step.get("phase_snr")})
+                          "transits": int(epochs), "period_ratio": round(res.period / period, 4), "phase_snr": step.get("phase_snr"),
+                          "event_chi2": step.get("event_chi2"), "events_brighter": step.get("events_brighter")})
             continue
         res, _, _, _, step = judged[0]
         if judged[0][0] is not top or step["outcome"] in ("not significant", "periodogram peak not prominent"):
