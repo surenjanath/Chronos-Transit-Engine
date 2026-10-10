@@ -5,7 +5,7 @@
 {% block page %}
       <section class="sheet">
         <h1 class="sheet-title">Benchmark <span class="quiet">· Real stars with known answers ·</span></h1>
-        <p class="lede">Kepler Threshold Crossing Events (DR24, Q1–Q17) labelled by the Kepler Science Office: PC planet candidates, AFP astrophysical false positives, NTP non-transiting phenomena. This is the ground truth AstroNet was scored on. A fifth of the stars are held out and never used for training.</p>
+        <p class="lede">Kepler Threshold Crossing Events (DR24, Q1–Q17) labelled by the Kepler Science Office: PC planet candidates, AFP astrophysical false positives, NTP non-transiting phenomena. This is the ground truth AstroNet was scored on, brought up to date where NASA has since confirmed a planet or ruled a signal a false positive. A fifth of the stars are held out and never used for training.</p>
         {% if dataset %}
         <div class="figures small">
           <div><div class="fig-label">Real stars</div><div class="fig-value">{{ dataset.stars }}</div><div class="fig-sub">Kepler quarters {{ dataset.quarters|join:", " }}</div></div>
@@ -31,7 +31,7 @@
             </div>
             <p class="warn-line">{{ real.accuracy|pct }} three-class accuracy on real stars.
               {% if real.baseline and not real.baseline.trained_on_real %}<span class="quiet">The previous checkpoint, trained on simulations only, scored AUC {{ real.baseline.auc_planet|num:3 }} and {{ real.baseline.accuracy|pct }} on the same stars.</span>{% endif %}</p>
-            {% if real.combined %}<p class="flagline">With the vetting diagnostics added as a second stage (odd/even, secondary eclipse, centroid, radius, duration): AUC <b style="font:inherit;font-weight:600">{{ real.combined.auc_planet|num:3 }}</b>, PR-AUC {{ real.combined.pr_auc_planet|num:3 }}, {{ real.combined.accuracy|pct }} accurate. This combined answer is what every run reports.</p>{% endif %}
+            {% if real.combined %}<p class="flagline">With the vetting measurements added as a second stage (odd/even, secondary eclipse, centroid, radius, duration, brightness changes in step with the orbit, depth from season to season and transit to transit, where on the detector the dimming happens): AUC <b style="font:inherit;font-weight:600">{{ real.combined.auc_planet|num:3 }}</b>, PR-AUC {{ real.combined.pr_auc_planet|num:3 }}, {{ real.combined.accuracy|pct }} accurate.{% if real.combined.planets_called %} It calls {{ real.combined.planets_called.0 }} of {{ real.combined.planets_called.1 }} planets a planet, and lets {{ real.combined.others_queued.0 }} of {{ real.combined.others_queued.1 }} other signals into the vetting queue.{% endif %} This combined answer is what every run reports.</p>{% endif %}
             <p class="tiny">CNN alone · confusion matrix · rows label, columns predicted</p>
             <table class="cm">
               <thead><tr><th></th><th>Planet</th><th>Binary</th><th>Noise</th></tr></thead>

@@ -27,6 +27,7 @@ class LightCurveData:
     stellar: dict = field(default_factory=dict)
     truth: dict | None = None
     warnings: list[str] = field(default_factory=list)
+    segment: np.ndarray | None = None  # observing quarter / sector of each sample, when several are stitched together
 
 
 def _arr(col) -> np.ndarray:
@@ -169,6 +170,7 @@ def fetch_mast(target: str, mission: str = "TESS", sequence: int | None = None, 
         name = f"{'KIC' if mission == 'Kepler' else 'EPIC'} {m['KEPLERID']}"
     meta = {
         "target_name": name, "query": target, "mission": mission,
+        "kepid": int(m["KEPLERID"]) if mission == "Kepler" and m.get("KEPLERID") else None,
         "sector": int(m["SECTOR"]) if m.get("SECTOR") else (int(m["QUARTER"]) if m.get("QUARTER") is not None else
                                                              (int(m["CAMPAIGN"]) if m.get("CAMPAIGN") is not None else None)),
         "camera": int(m["CAMERA"]) if m.get("CAMERA") else None, "ccd": int(m["CCD"]) if m.get("CCD") else None,
@@ -258,7 +260,7 @@ def load_benchmark_star(kepid: int) -> LightCurveData:
              "depth": row["koi_depth"] / 1e6 if row["koi_depth"] else None, "radius_earth": row["koi_prad"],
              "duration_hours": row["koi_duration"], "split": row["split"]}
     meta = {"target_name": f"KIC {kepid}", "alias": row.get("kepler_name") or row["kepoi_name"], "mission": "Kepler",
-            "sector": None, "camera": None, "ccd": None, "flux_column": "pdcsap_flux", "time_system": "bkjd",
+            "kepid": int(kepid), "sector": None, "camera": None, "ccd": None, "flux_column": "pdcsap_flux", "time_system": "bkjd",
             "quarters": sorted({int(q) for q in lc["quarter"]})}
     return LightCurveData(lc["time"][order], lc["flux"][order], lc["flux_err"][order], lc["centroid_col"][order],
-                          lc["centroid_row"][order], meta, stellar, truth)
+                          lc["centroid_row"][order], meta, stellar, truth, segment=lc["quarter"][order])

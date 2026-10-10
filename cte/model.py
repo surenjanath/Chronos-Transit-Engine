@@ -19,7 +19,7 @@ import numpy as np
 import torch
 from torch import nn
 
-from .config import CLASS_NAMES, MODEL_DIR, TOLERANCES
+from .config import CLASS_NAMES, DEFAULT_PIPELINE, MODEL_DIR, TOLERANCES
 from .physics import TransitAnalyticsEngine, global_view, local_channels, normalize_view
 from .synthetic import a_over_rstar, eclipsing_binary_flux, transit_flux
 
@@ -231,7 +231,10 @@ def _real_split():
     fold_of_star = {int(k): i % FOLDS for i, k in enumerate(train_stars)}
     fold = np.array([-1 if t else fold_of_star[int(k)] for k, t in zip(d["kepid"], d["test"])])
     train_idx = np.flatnonzero(fold >= 0)
-    return {"data": d, "fold": fold, "fit": train_idx, "val": train_idx[:0], "test": np.flatnonzero(d["test"]),
+    rank = d["rank"] if "rank" in d else np.zeros(len(d["y"]), int)
+    # scored on, and the second stage fitted on, each star's strongest signal: the one a blind run reports first
+    return {"data": d, "fold": fold, "fit": train_idx, "val": train_idx[:0], "test": np.flatnonzero(d["test"] & (rank == 0)),
+            "stack": np.flatnonzero((fold >= 0) & (rank == 0)),
             "summary": kepler.dataset_summary(), "sample": kepler.load_sample()}
 
 
@@ -245,7 +248,7 @@ def simulated_stack_samples(n_per_class: int = 300, seed: int = 11):
     from . import kepler
     from .synthetic import SyntheticSpec, synthesize
     rng = np.random.default_rng(seed)
-    g, l, aux, y = [], [], [], []
+    g, l, aux, ext, y = [], [], [], [], []
     for cls, kind in ((0, "planet"), (1, "eclipsing_binary"), (1, "blend")):
         made = 0
         for _ in range(n_per_class * 4):
@@ -270,15 +273,15 @@ def simulated_stack_samples(n_per_class: int = 300, seed: int = 11):
             v = kepler.koi_views(row, lc)
             if v is None:
                 continue
-            g.append(v[0]); l.append(v[1]); aux.append(v[2]); y.append(cls)
+            g.append(v[0]); l.append(v[1]); aux.append(v[2]); ext.append(v[3]); y.append(cls)
             made += 1
-    return np.stack(g), np.stack(l), np.stack(aux), np.array(y)
+    return np.stack(g), np.stack(l), np.stack(aux), np.stack(ext), np.array(y)
 
 
 def out_of_fold_probs(model, real: dict) -> np.ndarray:
-    """For each real training row, the prediction of the ensemble member that never saw that star."""
+    """For each real row the second stage is fitted on, the prediction of the ensemble member that never saw that star."""
     d, fold = real["data"], real["fold"]
-    train = real["fit"]
+    train = real["stack"]
     members = list(model.members) if isinstance(model, Ensemble) else []
     if len(members) != FOLDS:
         return class_probs(model, d["g"][train], d["l"][train])  # single network: no honest prediction available
@@ -294,16 +297,17 @@ def fit_stacker(model, real: dict, metrics: dict) -> dict | None:
     """Fit the second stage on the real training stars and record its score on the held-out stars."""
     from . import stack
     d = real["data"]
-    if "aux" not in d or d["aux"].shape[1] != len(stack.AUX):
+    if "aux" not in d or d["aux"].shape[1] != len(stack.AUX) or "ext" not in d or d["ext"].shape[1] != len(stack.EXTRA):
         return None  # dataset written by an older version: rebuild it to refresh the second stage
-    train = real["fit"]
+    train = real["stack"]
     # keep the simulated giants and binaries in the same proportion to the real examples as the set grows
-    sg, sl, saux, sy = simulated_stack_samples(int(np.clip(3 * len(train) // 8, 300, 1000)))
+    sg, sl, saux, sext, sy = simulated_stack_samples(int(np.clip(len(train) // 16, 300, 1000)))
     params = stack.fit(np.concatenate([out_of_fold_probs(model, real), class_probs(model, sg, sl)]),
-                       np.concatenate([d["aux"][train], saux]), np.concatenate([d["y"][train], sy]))
+                       np.concatenate([d["aux"][train], saux]), np.concatenate([d["ext"][train], sext]),
+                       np.concatenate([d["y"][train], sy]))
     params["n_real"], params["n_simulated"] = int(len(train)), int(len(sy))
     test = real["test"]
-    probs = stack.predict(class_probs(model, d["g"][test], d["l"][test]), d["aux"][test], params)
+    probs = stack.predict(class_probs(model, d["g"][test], d["l"][test]), d["aux"][test], d["ext"][test], params)
     y = d["y"][test]
     confusion = np.zeros((3, 3), int)
     np.add.at(confusion, (y, probs.argmax(1)), 1)
@@ -314,7 +318,11 @@ def fit_stacker(model, real: dict, metrics: dict) -> dict | None:
         "accuracy": round(float((probs.argmax(1) == y).mean()), 5), "confusion": confusion.tolist(),
         "roc": {"fpr": np.round(fpr[pick], 4).tolist(), "tpr": np.round(tpr[pick], 4).tolist()},
         "p_planet": [round(float(v), 4) for v in probs[:, 0]],
-        "features": stack.FEATURES,
+        "features": stack.FEATURES + stack.EXTRA,
+        # how many real planets are called planets, and how many others reach the vetting queue at its default threshold
+        "planets_called": [int((probs.argmax(1)[y == 0] == 0).sum()), int((y == 0).sum())],
+        "others_queued": [int((probs[y != 0, 0] >= DEFAULT_PIPELINE["planet_confidence"]).sum()), int((y != 0).sum())],
+        "planets_queued": [int((probs[y == 0, 0] >= DEFAULT_PIPELINE["planet_confidence"]).sum()), int((y == 0).sum())],
     }
     return params
 
@@ -480,7 +488,7 @@ def train(n_train: int = 30000, n_val: int = 3000, n_test: int = 6000, epochs: i
         r = evaluate_real(model, real)
         r.update(n_fit=int(len(np.unique(real["data"]["kepid"][real["fit"]]))), n_fit_examples=int(len(real["fit"])),
                  n_val=0, folds=FOLDS, members=len(members), summary=real["summary"], baseline=baseline_real,
-                 dataset="Kepler DR24 TCEs (Q1-Q17), Science Office labels, held-out stars")
+                 dataset="Kepler DR24 TCEs (Q1-Q17), Science Office labels updated to NASA's current dispositions, held-out stars")
         metrics["real"] = r
         stacker = fit_stacker(model, real, metrics)
     # Champion / challenger: an automated retrain replaces the active model only if it is not worse on the
@@ -609,7 +617,7 @@ def refresh_real_metrics() -> dict | None:
     cnn = get_model()
     r = evaluate_real(cnn, real)
     r.update(n_fit=metrics.get("real", {}).get("n_fit"), n_val=metrics.get("real", {}).get("n_val"), summary=real["summary"],
-             baseline=None, dataset="Kepler DR24 TCEs (Q1-Q17), Science Office labels, held-out stars",
+             baseline=None, dataset="Kepler DR24 TCEs (Q1-Q17), Science Office labels updated to NASA's current dispositions, held-out stars",
              cnn_trained_on_stars=(metrics.get("real", {}).get("summary") or {}).get("stars"))
     metrics["real"] = r
     params = fit_stacker(cnn, real, metrics)

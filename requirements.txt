@@ -10,3 +10,5 @@ psycopg[binary]>=3.2
 pytest>=8.0
 pytest-django>=4.9
 batman-package>=2.5
+scikit-learn>=1.5
+joblib>=1.3

@@ -228,7 +228,8 @@ def run_validation(val_id: int, progress: Callable[[str], None] | None = None, o
             c["cases"].insert(0, {"label": f"Real Kepler stars, CNN alone, planet vs rest (n = {len(stars)}; 95% interval {lo:.3f} - {hi:.3f})",
                                   "expected": TOLERANCES["auc_min"], "measured": real["auc_planet"], "ok": bool(real_ok)})
             c["notes"][0] = ("Scored on held-out stars from the Kepler DR24 TCE table with the Science Office labels - the "
-                             "ground truth behind the AstroNet benchmark. The simulated partition gates checkpoint activation.")
+                             "ground truth behind the AstroNet benchmark - updated where NASA has since confirmed a planet or "
+                             "ruled a signal a false positive. The simulated partition gates checkpoint activation.")
             comb = real.get("combined")
             if comb:  # the system's final answer is the second stage (CNN + physical diagnostics)
                 c["cases"].insert(0, {"label": f"Real Kepler stars, final classification = CNN + vetting diagnostics (n = {len(stars)})",

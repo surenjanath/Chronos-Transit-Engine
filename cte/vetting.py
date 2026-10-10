@@ -191,3 +191,96 @@ def diagnose(time, flat, period, t0, t14, depth, params: dict, centroids=None) -
                      f"Photocentre shifts by {offset * 1e3:.2f} mpix in transit ({sig:.1f} sigma): the varying source lies "
                      f"about {separation:.1f} px from the target - likely a background star")
     return diag, flags
+
+
+# ---------------------------------------------------------------------------
+# Extended measurements for the second-stage classifier
+# ---------------------------------------------------------------------------
+
+EXTRA = ["log_period", "log_t14h", "q", "n_transits", "log_scatter_ppm", "teff", "log_srad", "log_smass", "log_rho",
+         "h1_amp_sig", "h2_amp_sig", "h1_sin_sig", "h1_cos_sig", "h2_cos_sig", "h2_amp_over_depth", "h1_amp_over_depth",
+         "season_max_sig", "season_range_over_depth", "segment_chi2", "transit_chi2", "max_event_share",
+         "sec_sigma_raw", "sec_ratio_raw", "shift_sigma", "shift_tertiary", "shift_positive", "red_noise", "shift_phase_off",
+         "shift_ratio_raw", "shift_albedo_raw", "odd_even_rel", "cen_sigma_raw", "cen_sep_raw", "cen_offset_mpix",
+         "asym_sig", "wing_sig", "depth_ratio_fit", "ingress_frac", "local_min_sig", "snr_per_transit",
+         # from the pixels (cte.pixels), appended by whoever has them; NaN otherwise
+         "pix_offset", "pix_sigma", "pix_peak_dist", "pix_quarters"]
+N_PIXEL = 4
+
+
+def _harmonics(time, flux, x, period, t14) -> tuple[float, float, float, float, float, float] | None:
+    """Out-of-transit variation at the orbital period and at half of it: reflection, beaming and the ellipsoidal
+    distortion of a star pulled by a stellar-mass companion. Measured on a gently detrended curve, because the
+    1.5-day filter used for the transit search would remove it."""
+    trend, _ = savgol_detrend(time, flux, float(np.clip(3.0 * period, 1.5, 12.0)), 3, transit_mask=np.abs(x) < t14)
+    use = (np.abs(x) > t14) & (np.abs(np.abs(x) - 0.5 * period) > t14)
+    if use.sum() < 200:
+        return None
+    ph = 2 * np.pi * x[use] / period
+    design = np.column_stack([np.ones(use.sum()), np.sin(ph), np.cos(ph), np.sin(2 * ph), np.cos(2 * ph)])
+    y = (flux / trend)[use] - 1.0
+    coef, *_ = np.linalg.lstsq(design, y, rcond=None)
+    scatter = robust_std(y - design @ coef)
+    err = scatter * np.sqrt(2.0 / use.sum()) if scatter and scatter > 0 else 1.0
+    return float(np.hypot(coef[1], coef[2])), float(np.hypot(coef[3], coef[4])), float(coef[1] / err), float(coef[2] / err), float(coef[4] / err), err
+
+
+def extended(time, flux, flat, period, t0, t14, t12, depth, diag: dict, stellar: tuple[float, float, float],
+             local_min: float, segment=None) -> list[float]:
+    """Further measurements of one signal, in the order of `EXTRA`. Everything comes from the light curve, the
+    ephemeris and the star's basic parameters, so a blind run and a catalogue-folded training star are measured
+    alike. `flux` is the normalised curve before detrending; `segment` numbers the observing quarter or sector of
+    each sample when known (a depth that changes with Kepler's seasonal roll betrays light from a neighbouring star).
+    Whatever cannot be measured is NaN; the last `N_PIXEL` entries are placeholders for the pixel-level check."""
+    nan = float("nan")
+    x = (time - t0 + 0.5 * period) % period - 0.5 * period
+    epoch = np.round((time - t0) / period).astype(int)
+    core, oot = np.abs(x) < 0.25 * t14, np.abs(x) > t14
+    sigma = robust_std(flat[oot]) or 1e-6
+    d_all = float(np.mean(1.0 - flat[core])) if core.sum() else depth
+    d_med = max(float(1.0 - np.median(flat[core])) if core.sum() else depth, 1e-5)
+    h = _harmonics(time, flux, x, period, t14)
+    h1, h2, s1, c1, c2, herr = h if h else (0.0, 0.0, 0.0, 0.0, 0.0, 1.0)
+
+    def groups(key, least):
+        out = []
+        for k in np.unique(key[core]):
+            m = core & (key == k)
+            if m.sum() >= least:
+                out.append((float(np.mean(1.0 - flat[m])), sigma / np.sqrt(m.sum())))
+        return out
+
+    season_sig = season_rng = seg_chi2 = nan
+    if segment is not None:
+        seg = np.asarray(segment).astype(int)
+        seasons, parts = groups(seg % 4, 5), groups(seg, 5)
+        if len(seasons) > 1:
+            season_sig = max(abs(d - d_all) / e for d, e in seasons)
+            season_rng = (max(d for d, _ in seasons) - min(d for d, _ in seasons)) / depth
+        if len(parts) > 2:
+            seg_chi2 = float(np.mean([((d - d_all) / e) ** 2 for d, e in parts]))
+    events = groups(epoch, 2)
+    t_chi2 = float(np.mean([((d - d_all) / e) ** 2 for d, e in events])) if len(events) > 2 else nan
+    snr2 = np.array([(d / e) ** 2 for d, e in events]) if events else np.array([1.0])
+    share = float(snr2.max() / snr2.sum() * len(snr2)) if snr2.sum() > 0 else 1.0
+    sec, shift, oe, cen = (diag.get(k) or {} for k in ("secondary", "model_shift", "odd_even", "centroid"))
+    ingress, egress = (x < -0.25 * t14) & (x > -0.5 * t14), (x > 0.25 * t14) & (x < 0.5 * t14)
+    asym = 0.0
+    if ingress.sum() >= 3 and egress.sum() >= 3:
+        asym = float((np.mean(flat[ingress]) - np.mean(flat[egress])) / (sigma * np.hypot(1 / np.sqrt(ingress.sum()), 1 / np.sqrt(egress.sum()))))
+    wing = (np.abs(x) > 0.6 * t14) & (np.abs(x) < 1.5 * t14)
+    wing_sig = float(np.mean(flat[wing] - 1.0) / (sigma / np.sqrt(wing.sum()))) if wing.sum() >= 5 else 0.0
+    albedo = shift.get("albedo", 0.0)
+    teff, srad, smass = stellar
+    n_tr = max(int(diag.get("n_transits", 1)), 1)
+    out = [np.log10(period), np.log10(max(t14 * 24.0, 0.1)), t14 / period, n_tr, np.log10(max(diag.get("oot_scatter_ppm", 1.0), 1.0)),
+           teff, np.log10(srad), np.log10(smass), np.log10(smass / srad ** 3),
+           h1 / herr, h2 / herr, s1, c1, c2, h2 / depth, h1 / depth,
+           season_sig, season_rng, seg_chi2, t_chi2, share,
+           sec.get("sigma", 0.0), sec.get("ratio", 0.0), shift.get("sigma", 0.0), shift.get("tertiary_sigma", 0.0),
+           shift.get("positive_sigma", 0.0), shift.get("red_noise_factor", 1.0), abs(shift.get("phase", 0.5) - 0.5),
+           shift.get("ratio", 0.0), albedo if albedo is not None and np.isfinite(albedo) else 0.0,
+           (oe.get("depth_odd_ppm", 0.0) - oe.get("depth_even_ppm", 0.0)) / (depth * 1e6) if oe else 0.0,
+           cen.get("sigma", nan), cen.get("separation_px", nan), cen.get("offset_mpix", nan),
+           asym, wing_sig, depth / d_med, t12 / max(0.5 * t14, 1e-9), (1.0 - local_min) / (sigma + 1e-9), diag.get("snr", 0.0) / np.sqrt(n_tr)]
+    return [float(np.clip(v, -1e6, 1e6)) if np.isfinite(v) else nan for v in out] + [nan] * N_PIXEL

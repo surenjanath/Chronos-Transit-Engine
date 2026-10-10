@@ -24,7 +24,7 @@
               <p class="co">Bond albedo \(A_B = 0.3\) by default. A limb-darkened fit then refines \(R_p/R_\star\), \(a/R_\star\) and \(b\) with \(1\sigma\) errors, because limb darkening makes mid-transit deeper than \((R_p/R_\star)^2\).</p></div>
             <div class="block"><h3>5 · Phase folding and classification</h3>
               <div class="formula">\[ \phi_i = \frac{\left( (t_i - t_0 + P/2) \bmod P \right) - P/2}{P} \in [-0.5,\, 0.5) \]</div>
-              <p>The folded curve is binned into a 201-bin global view over \(\phi \in [-0.5, 0.5]\) and a 61-bin local view over \(\phi \in [-2.5q,\, 2.5q]\). A dual-branch 1D-CNN returns \([P_{\mathrm{planet}}, P_{\mathrm{binary}}, P_{\mathrm{noise}}]\); a second stage weighs that with the vetting diagnostics.</p></div>
+              <p>The folded curve is binned into a 201-bin global view over \(\phi \in [-0.5, 0.5]\) and a 61-bin local view over \(\phi \in [-2.5q,\, 2.5q]\). A dual-branch 1D-CNN returns \([P_{\mathrm{planet}}, P_{\mathrm{binary}}, P_{\mathrm{noise}}]\); a second stage of gradient-boosted trees weighs that with the vetting diagnostics and some forty further measurements of the light curve.</p></div>
             <div class="block"><h3>6 · Vetting and significance</h3>
               <div class="formula">\[ \mathrm{S/N} = \frac{\delta}{\sigma} \sqrt{N_{\mathrm{in}}}, \qquad \Delta_{\mathrm{odd/even}} = \frac{\left| \delta_{\mathrm{odd}} - \delta_{\mathrm{even}} \right|}{\sqrt{\sigma_{\mathrm{odd}}^2 + \sigma_{\mathrm{even}}^2}}, \qquad s_{\mathrm{source}} \approx \frac{\Delta \mathrm{centroid}}{\delta} \]
                 \[ \rho_\star = \frac{3\pi}{G P^2} \left( \frac{a}{R_\star} \right)^{3} \]</div>

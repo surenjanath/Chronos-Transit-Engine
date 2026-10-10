@@ -11,7 +11,7 @@ import numpy as np
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from . import ingest, model, stack
+from . import ingest, model, pixels, stack
 from .bls import bls_search, fit_trapezoid, normalized_weights, refine_ephemeris_shape
 from .conditioning import (choose_detrend_window, median_normalize, periodic_variability_model, savgol_detrend,
                            sigma_clip)
@@ -19,7 +19,7 @@ from .fit import fit_limb_darkened, search_additional
 from .config import ARCHIVE_DIR, CLASS_NAMES
 from .physics import StellarParameters, TransitAnalyticsEngine, derive, global_view, local_channels, local_view, shape_geometry, validate_transit
 from .telemetry import RunLogger, clean
-from .vetting import diagnose
+from .vetting import N_PIXEL, diagnose, extended
 from .visuals import build_visuals
 
 STAGES = ["INGEST", "NORMALIZATION", "OUTLIER_REJECTION", "DETRENDING", "BLS_SEARCH", "PHASE_FOLDING",
@@ -64,6 +64,7 @@ def process(data: ingest.LightCurveData, cfg: dict, log: RunLogger,
     t_all, f_raw = data.time[order], data.flux[order]
     e_raw = data.flux_err[order] if data.flux_err is not None else None
     cents = [c[order] if c is not None else None for c in (data.centroid_col, data.centroid_row)]
+    segment = data.segment[order] if data.segment is not None else None
     if len(t_all) < 200:
         raise ValueError(f"light curve has only {len(t_all)} cadences; at least 200 are required")
     cadence = float(np.median(np.diff(t_all)))
@@ -88,6 +89,7 @@ def process(data: ingest.LightCurveData, cfg: dict, log: RunLogger,
     t, f = t_all[keep], f_norm[keep]
     e = e_norm[keep] if e_norm is not None else None
     cents_k = [c[keep] if c is not None else None for c in cents]
+    segment_k = segment[keep] if segment is not None else None
     lap("OUTLIER_REJECTION")
 
     # 2.2 Savitzky-Golay detrend (first pass)
@@ -242,7 +244,17 @@ def process(data: ingest.LightCurveData, cfg: dict, log: RunLogger,
     l_stack = local_channels(t, flat, bls.period, t0, q_local, int(cfg["local_bins"]))
     cnn_probs = model.predict(g_vec, l_stack)
     probs = cnn_probs
-    combined = stack.predict([cnn_probs[n] for n in CLASS_NAMES], stack.aux_from(depth, fit["v_shape"], diag, params["radius_earth"]))
+    extra = extended(t, f, flat, bls.period, t0, t14, fit["t12"], depth, diag,
+                     (stellar["t_eff_k"], stellar["r_star_solar"], stellar["m_star_solar"]), float(l_vec.min()), segment_k)
+    kepid = data.meta.get("kepid")
+    if kepid and data.meta.get("mission") == "Kepler":  # where on the detector the dip comes from
+        note("Looking at the star's pixels: does the dip come from the target itself or from a neighbour?")
+        try:
+            extra[-N_PIXEL:] = pixels.measure_star(int(kepid), bls.period, t0, t14)
+            diag["pixels"] = dict(zip(pixels.NAMES, [None if not np.isfinite(v) else round(v, 4) for v in extra[-N_PIXEL:]]))
+        except Exception:
+            pass  # the check is optional evidence; MAST being slow must not fail the run
+    combined = stack.predict([cnn_probs[n] for n in CLASS_NAMES], stack.aux_from(depth, fit["v_shape"], diag, params["radius_earth"]), extra)
     if combined is not None:  # second stage: CNN shape evidence weighed with the physical diagnostics
         probs = {name: round(float(p), 4) for name, p in zip(CLASS_NAMES, combined[0])}
     prediction = max(probs, key=probs.get)

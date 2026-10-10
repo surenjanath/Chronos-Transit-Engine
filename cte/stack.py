@@ -1,20 +1,20 @@
 """Second-stage classifier: the CNN's opinion combined with the physical vetting evidence.
 
 The CNN sees only the normalised shape of the folded curve. It cannot know how deep the transit is, whether odd
-and even transits differ, or whether there is a secondary eclipse - exactly the evidence that separates a deep
-hot Jupiter from an eclipsing binary. A small multinomial logistic model, fitted on real labelled stars, weighs
-the CNN probabilities together with those diagnostics and produces the final class probabilities.
+and even transits differ, whether the depth changes from one observing season to the next or whether the star
+brightens and dims in step with the orbit - the evidence that separates a planet from an eclipsing binary or a
+blend. Gradient-boosted trees, fitted on real labelled stars, weigh the CNN probabilities together with those
+measurements and produce the final class probabilities.
 """
 from __future__ import annotations
 
-import json
-
 import numpy as np
-import torch
 
-from .config import CLASS_NAMES, MODEL_DIR
+from .config import MODEL_DIR
+from .vetting import EXTRA
 
-STACKER = MODEL_DIR / "stacker.json"
+STACKER = MODEL_DIR / "stacker.joblib"
+LEGACY = MODEL_DIR / "stacker.json"  # the earlier small-network second stage
 FEATURES = ["cnn_logit_planet", "cnn_logit_binary", "log10_depth", "shape_v", "odd_even_sigma", "secondary_sigma",
             "secondary_ratio", "log10_snr", "centroid_sigma", "centroid_separation_px", "radius_excess_over_2rj", "duration_ratio",
             "shift_margin", "shift_ratio", "shift_log10_albedo"]
@@ -45,9 +45,10 @@ def aux_from(depth: float, v_shape: float, diag: dict, radius_earth: float) -> l
             float(shift.get("albedo", 0.0)) if significant and np.isfinite(shift.get("albedo", 0.0)) else 0.0]
 
 
-def features(probs: np.ndarray, aux: np.ndarray) -> np.ndarray:
+def features(probs: np.ndarray, aux: np.ndarray, extra: np.ndarray | None = None) -> np.ndarray:
     probs = np.atleast_2d(np.asarray(probs, dtype=float))
     aux = np.nan_to_num(np.atleast_2d(np.asarray(aux, dtype=float)), nan=0.0, posinf=1e4, neginf=0.0)  # undefined -> neutral
+    extra = np.full((len(aux), len(EXTRA)), np.nan) if extra is None else np.atleast_2d(np.asarray(extra, dtype=float))
     p = np.clip(np.nan_to_num(probs, nan=1 / 3), 1e-4, 1 - 1e-4)
     logit = np.log(p / (1 - p))
     return np.column_stack([
@@ -57,41 +58,34 @@ def features(probs: np.ndarray, aux: np.ndarray) -> np.ndarray:
         # (which would just encode how rare giants are among Kepler's planets)
         np.log10(np.clip(aux[:, 8], 20.0, 300.0) / 20.0), np.clip(aux[:, 9], 0.2, 3.0),
         np.clip(aux[:, 10], -3.0, 15.0), np.clip(aux[:, 11], 0.0, 1.0), np.log10(np.clip(aux[:, 12], 0.1, 1000.0)),
+        extra,  # trees need no scaling, and take a missing measurement (NaN) as it is
     ])
 
 
-HIDDEN = 12
-MEMBERS = 7
+MEMBERS = 5
 
 
-def _fit_one(xt, yt, n_features: int, weight_decay: float, seed: int) -> dict:
-    torch.manual_seed(seed)
-    net = torch.nn.Sequential(torch.nn.Linear(n_features, HIDDEN), torch.nn.Tanh(), torch.nn.Linear(HIDDEN, len(CLASS_NAMES)))
-    opt = torch.optim.Adam(net.parameters(), lr=0.02, weight_decay=weight_decay)
-    for _ in range(400):
-        opt.zero_grad()
-        torch.nn.functional.cross_entropy(net(xt), yt).backward()
-        opt.step()
-    lin1, lin2 = net[0], net[2]
-    return {"w1": lin1.weight.detach().numpy().tolist(), "b1": lin1.bias.detach().numpy().tolist(),
-            "w2": lin2.weight.detach().numpy().tolist(), "b2": lin2.bias.detach().numpy().tolist()}
+def fit(probs: np.ndarray, aux: np.ndarray, extra: np.ndarray, y: np.ndarray) -> dict:
+    """Several boosted-tree models that differ only in their random seed; the answer is their mean. Trees suit
+    this evidence: each measurement matters only in combination with others (a deep dip is a planet only if
+    everything else is clean), and several of them are absent for some stars."""
+    import sklearn
+    from sklearn.ensemble import HistGradientBoostingClassifier
 
-
-def fit(probs: np.ndarray, aux: np.ndarray, y: np.ndarray, weight_decay: float = 0.01) -> dict:
-    """An ensemble of small one-hidden-layer networks. The evidence interacts (a deep dip is a planet only if
-    everything else is clean), and averaging several independently initialised members keeps the answer stable
-    from one refit to the next."""
-    x = features(probs, aux)
-    mean, std = x.mean(0), x.std(0) + 1e-9
-    xt = torch.tensor((x - mean) / std, dtype=torch.float32)
-    yt = torch.tensor(y, dtype=torch.long)
-    return {"features": FEATURES, "mean": mean.tolist(), "std": std.tolist(), "n": int(len(y)),
-            "members": [_fit_one(xt, yt, x.shape[1], weight_decay, seed) for seed in range(MEMBERS)]}
+    x = features(probs, aux, extra)
+    # classes weighted equally, so the answer does not drift with how many binaries happen to be in the training set
+    members = [HistGradientBoostingClassifier(max_iter=400, learning_rate=0.05, max_leaf_nodes=15, min_samples_leaf=20,
+                                              l2_regularization=1.0, early_stopping=False, class_weight="balanced",
+                                              random_state=seed).fit(x, y)
+               for seed in range(MEMBERS)]
+    return {"features": FEATURES + EXTRA, "n": int(len(y)), "members": members, "sklearn": sklearn.__version__}
 
 
 def save(params: dict) -> None:
     global _cached
-    STACKER.write_text(json.dumps(params, indent=1))
+    import joblib
+    joblib.dump(params, STACKER)
+    LEGACY.unlink(missing_ok=True)
     _cached = params
 
 
@@ -101,7 +95,11 @@ _cached: dict | None = None
 def load() -> dict | None:
     global _cached
     if _cached is None and STACKER.exists():
-        _cached = json.loads(STACKER.read_text())
+        import joblib
+        try:
+            _cached = joblib.load(STACKER)
+        except Exception:
+            return None  # written by an incompatible library version: retrain to refresh
     return _cached
 
 
@@ -110,19 +108,11 @@ def reset_cache() -> None:
     _cached = None
 
 
-def predict(probs, aux, params: dict | None = None) -> np.ndarray | None:
-    """Final class probabilities, or None when no stacker has been fitted (the CNN output is then used as is)."""
+def predict(probs, aux, extra=None, params: dict | None = None) -> np.ndarray | None:
+    """Final class probabilities, or None when no second stage has been fitted (the CNN output is then used as is)."""
     params = params or load()
-    if params is None:
-        return None
-    if "members" not in params or len(params["mean"]) != len(FEATURES):
+    names = (params or {}).get("features") or []
+    if params is None or not names or names != (FEATURES + EXTRA)[:len(names)]:
         return None  # written by an older version: retrain to refresh
-    x = (features(probs, aux) - np.array(params["mean"])) / np.array(params["std"])
-    total = 0.0
-    for m in params["members"]:
-        z = np.tanh(x @ np.array(m["w1"]).T + np.array(m["b1"])) @ np.array(m["w2"]).T + np.array(m["b2"])
-        z -= z.max(1, keepdims=True)
-        e = np.exp(z)
-        total = total + e / e.sum(1, keepdims=True)
-    e = total
-    return e / e.sum(1, keepdims=True)
+    x = features(probs, aux, extra)[:, :len(names)]  # a model fitted before the newest measurements simply ignores them
+    return np.mean([m.predict_proba(x) for m in params["members"]], axis=0)

@@ -8,6 +8,7 @@ record raises `LogIntegrityError`, which terminates the pipeline run (§6).
 """
 from __future__ import annotations
 
+import fcntl
 import hashlib
 import json
 import logging
@@ -149,14 +150,21 @@ class RunLogger:
         self._lock = threading.Lock()
         self._seq = 0
         self._prev = GENESIS_HASH
+        self._size = 0
         if self.path.exists():  # resume an existing chain (system log)
             with self.path.open() as fh:
-                for line in fh:
-                    try:
-                        obj = json.loads(line)
-                        self._seq, self._prev = obj["seq"], obj["hash"]
-                    except (json.JSONDecodeError, KeyError):
-                        continue
+                self._resume(fh)
+
+    def _resume(self, fh) -> None:
+        """Take up the chain from the last record in the file."""
+        fh.seek(0)
+        for line in fh:
+            try:
+                obj = json.loads(line)
+                self._seq, self._prev = obj["seq"], obj["hash"]
+            except (json.JSONDecodeError, KeyError):
+                continue
+        self._size = fh.tell()
 
     def log(self, level: str, message: str, stage: str | None = None, **telemetry: Any) -> dict:
         with self._lock:
@@ -165,21 +173,30 @@ class RunLogger:
                 tele = {"stage": stage, **tele}
             if self.run_id:
                 tele = {"run_id": self.run_id, **tele}
-            self._seq += 1
-            record: dict[str, Any] = {
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-                "level": level,
-                "module": self.module,
-                "message": message,
-            }
-            if tele:
-                record["telemetry"] = tele
-            record["seq"] = self._seq
-            record["hash"] = record_hash(self._prev, record)
-            validate_record(record)
-            self._prev = record["hash"]
-            with self.path.open("a") as fh:
+            with self.path.open("a+") as fh:
+                # The system log is shared by the web server and by management commands. Each holds the file lock
+                # while it writes and, if another process has appended since, continues from that record - otherwise
+                # two writers would each extend the chain from the same link and break it.
+                fcntl.flock(fh, fcntl.LOCK_EX)
+                fh.seek(0, 2)
+                if fh.tell() != self._size:
+                    self._resume(fh)
+                self._seq += 1
+                record: dict[str, Any] = {
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "level": level,
+                    "module": self.module,
+                    "message": message,
+                }
+                if tele:
+                    record["telemetry"] = tele
+                record["seq"] = self._seq
+                record["hash"] = record_hash(self._prev, record)
+                validate_record(record)
+                self._prev = record["hash"]
                 fh.write(json.dumps(record, allow_nan=False) + "\n")
+                fh.flush()
+                self._size = fh.tell()
             logger.log(getattr(logging, level), message, extra={"cte_record": record})
             if self._sink:
                 self._sink(self.run_id, record, stage)
