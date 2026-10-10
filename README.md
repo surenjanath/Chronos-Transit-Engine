@@ -122,20 +122,22 @@ Most three-class disagreements are between "binary" and "noise" for weak signals
 PRD floor: AUC 0.96, PR-AUC 0.88. Training set: 30,000 simulated signals plus 5,981 real stars (37,850 real examples:
 every labelled signal on a star, each seen through three independent stretches of the four-year mission and once whole).
 
-**Blind benchmark, 90 held-out stars** (the pipeline gets only the photometry and must find the period itself)
+**Blind benchmark, 90 held-out stars, current classifier** (the pipeline gets only the photometry and must find the period itself)
 
 | | |
 |---|---|
-| Period found exactly | 55 of 60 (plus 2 at an alias) |
-| Real planets called planets | 29 of 30 |
-| False positives sent to the vetting queue | 2 of 60 |
-| Class agrees with the catalogue label | 86% |
-| Planet-vs-rest AUC | 0.982 |
+| Period found exactly | 54 of 60 |
+| Real planets called planets | 30 of 30 |
+| Real planets sent straight to the vetting queue | 25 of 30 |
+| Other signals sent to the vetting queue | 2 of 60 |
+| Planet-or-not decision right | 87 of 90 (97%) |
+| Class agrees with the catalogue label | 83% |
+| Planet-vs-rest AUC | 0.980 |
 
-The second 45 stars were run on the final code of that model; the first 45 on the code as it stood two small tuning changes earlier.
-These 90 stars predate the current classifier. On the 43 held-out stars run blind since it was trained: 13 of 14 planets
-called planets, 0 of 29 other signals sent to the vetting queue, period found exactly for 19 of 28 (plus 3 at half the period),
-class agrees with the label for 84%.
+One of the two other signals in the queue, TCE 9811915-1, carries a 2015 "noise" label but is listed by NASA today as a
+candidate. An earlier 90-star run with the previous classifier scored 29 of 30 planets called, 2 of 60 in the queue,
+55 of 60 periods exact (plus 2 at an alias), 86% class agreement and AUC 0.982: the new one calls one more planet, and
+is slightly lower on period recovery, class agreement and AUC.
 
 **Injection and recovery** (Mandel-Agol transits from `batman` injected into real stars)
 

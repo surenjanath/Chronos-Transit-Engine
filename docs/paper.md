@@ -220,9 +220,11 @@ tuned on these stars; the table shows what a survey that cares more about comple
 ### 4.6 Blind benchmark
 
 In the blind benchmark the pipeline receives only the photometry of held-out stars and must find the period
-itself before classifying. On the 43 stars run with the previous version of the classifier (before the
-pixel-level check): 13 of 14 planets called planets, none of 29 other signals sent to the vetting queue, the
-period found exactly for 19 of 28 periodic signals and at half the period for 3 more.
+itself before classifying. On 90 held-out stars (30 per class) with the classifier described here: all 30 planets
+were called planets and 25 went straight to the vetting queue; 2 of 60 other signals reached the queue, one of
+which NASA now lists as a candidate; the planet-or-not decision was right for 87 of 90; the period was found
+exactly for 54 of the 60 periodic signals; three-class agreement was 83% and the AUC 0.980. A 90-star run with
+the previous version of the classifier scored 29 of 30, 2 of 60, 55 of 60 periods, 86% and 0.982.
 
 ### 4.7 Detection limits
 
