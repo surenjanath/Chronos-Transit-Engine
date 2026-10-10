@@ -146,8 +146,8 @@ is slightly lower on period recovery, class agreement and AUC.
 | Quiet stars, injected S/N ≥ 10 | 98% recovered |
 | Quiet stars, at the 7.1 detection threshold | 50% |
 | Quiet stars, below S/N 4.5 | 4% (the false-alarm floor) |
-| Variable stars, second planet behind the star's own signal | 46 of 48 (42 of the 44 detectable in principle) |
-| Variable stars, nothing injected: stars given a spurious extra signal | 2 of 45 |
+| Variable stars, second planet behind the star's own signal | 93 of 96 (84 of the 85 detectable in principle) |
+| Variable stars, nothing injected: stars given an extra signal | 5 of 88 |
 
 **PRD acceptance criteria** (`manage.py verify`): period error 4.6 × 10⁻⁵ (limit 10⁻⁴), depth 3.25% (limit 5%), radius
 3.78% (limit 5%), log integrity 100%. **Golden targets**: 12 of 12 assertions hold, including all six TRAPPIST-1
@@ -226,8 +226,8 @@ It is off by default. Each cycle and each training run is logged and listed on t
   star's wiggles at other phases), or a further transit-like signal. Only the last is reported; the others are
   divided out and the search repeats, so rotation or pulsation can neither use up the budget nor hide a planet.
   A further signal must stand out against the star's correlated noise, not just white noise. The page lists every
-  peak examined and what was decided. Measured on fresh variable stars: 46 of 48 injected planets recovered (the
-  first version of this search recovered about half), with a spurious signal on 2 of 45 stars when nothing is injected.
+  peak examined and what was decided. Measured on variable stars: 93 of 96 injected planets recovered, 84 of the 85 detectable in principle (the
+  first version of this search recovered about half), with an extra signal on 5 of 88 stars when nothing is injected.
 - **Second dip at any phase.** A model-shift test scans the whole orbit for a second dip, as the Kepler Robovetter
   does; an eccentric binary's secondary eclipse need not sit at phase 0.5. It counts against a planet only when it
   is too bright for a planet to produce (albedo above 1), so a hot Jupiter's real occultation is not held against
@@ -332,17 +332,20 @@ residuals are white) and `remove_periodic_variability` (divide out a non-transit
 
 ## Known limits
 
-- **Variable stars.** Two of 48 injected planets are still missed, and 2 of 45 variable stars get a spurious extra
-  signal. Both misses have a signal-to-noise near 10 against the star's own correlated noise; in one the right period
-  was examined and judged not significant. Loosening that test to catch them would raise the spurious rate, so the
-  balance is left where it is. Additional signals are candidates for inspection, not classified detections.
+- **Variable stars.** Of 85 planets injected into variable stars and detectable in principle, 84 are now found (80
+  before two fixes described below); counting the 11 too weak to detect, 93 of 96. The one detectable miss has a
+  signal-to-noise of 9.5 against its star's own noise: the right period is examined and judged not significant, and a
+  fairer re-measurement agrees. With nothing injected, 5 of 88 stars get an extra signal (4 before). One of the five
+  is a deep eclipsing binary on which the search used to be blind; it now also reports the binary's true period, twice
+  the one first found. Additional signals are candidates for inspection, not classified detections.
 - **Speed.** A four-year Kepler star (60,000 cadences) now takes 15 s when quiet and 25–40 s when variable, down from
   27 s and 60–140 s on the same stars and machine. Two inner loops were rewritten: the period search (2.9 times faster,
   periodogram bit-for-bit identical) and the ephemeris refinement (7 times faster, same period to 13 digits). 3–5 s of a
   Kepler run is spent fetching pixel files. A 27-day TESS sector takes a few seconds.
-- **The map.** 4,202 of 6,418 planets are drawn where they are on their orbit today, from a measured transit time and
-  period; the rest have no transit time, or a period too uncertain to say where they are by now. Which way an orbit is
-  turned on the sky is not in the catalogue. 27 planets with neither a distance nor a parallax are left off.
+- **The map.** 4,205 of the 6,427 planets are drawn where they are on their orbit today, from a measured transit time
+  and period; the rest have no transit time, or a period too uncertain to say where they are by now. Which way an orbit
+  is turned on the sky is not in the catalogue. 18 planets are left off because no distance has been measured for
+  their stars: pulsars, microlensing hosts, brown dwarfs, and a few faint Kepler stars with no Gaia parallax.
 - **Kepler only for the pixel check and the accuracy figures.** TESS and K2 runs work and pass the golden targets, but
   the classifier's accuracy there is not measured on a labelled set.
 
@@ -353,7 +356,14 @@ residuals are white) and `remove_periodic_variability` (divide out a non-transit
 - **KOI-143.01**, which the archive lists as a false positive, used to reach the vetting queue. It is a held-out star
   and is now called an eclipsing binary, with P(planet) = 0.03.
 - **WASP-12 b** scored 0.942, under the 0.95 golden-target bar. It now scores 0.988.
-- **The map** drew no planets on their orbits and left 28 planets off. See above.
+- **The map** drew no planets on their orbits and left 28 planets off. Ten of those are now placed from a measured
+  parallax (nine from Gaia DR3, matched by position and brightness; one already in the archive).
+- **Variable stars: two bugs in the further-signal search.** A planet whose period happened to be a whole multiple of
+  a stellar-variability period already removed was discarded as a leftover of it, however clear its dips. And after a
+  strongly variable star's waveform was divided out, the baseline could sit a few percent above 1, which left the
+  period search nearly blind. On the original 48 trials recovery of detectable planets went from 42 to 43 of 44; on 48
+  fresh trials from 38 to 41 of 41.
+- **Speed**: see above.
 
 ## Notes on the PRD
 

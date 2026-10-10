@@ -199,6 +199,41 @@ def _other_peaks(t, f, e, cfg: dict, periods, sr, skip_period: float, count: int
     return out
 
 
+def _is_residue(t, f, res, known_period: float) -> bool:
+    """Is this peak a leftover of a signal already dealt with, at `known_period`?
+
+    Nearly the same period: yes, it is that signal again. At a simple ratio of it: probably - but a planet can sit
+    at a whole multiple of a star's rotation period by chance. The two are told apart by where the dips fall. A
+    leftover of something repeating every `known_period` dips at every one of those cycles, so when the peak is at
+    N times that period there are dips at the N - 1 phases in between (of similar depth for a wave, of a different
+    depth for the unequal eclipses of a binary found at half its period). A planet dips once per orbit.
+    """
+    ratio = res.period / known_period
+    if abs(ratio - 1.0) < 0.03:
+        return True
+    for h in HARMONICS:
+        if abs(ratio - h) / h >= 0.0025:
+            continue
+        n = int(round(h))
+        if n < 2 or abs(h - n) > 1e-9:
+            return True
+
+        def depth(shift: float) -> float:
+            x = np.abs((t - res.t0 - shift + 0.5 * res.period) % res.period - 0.5 * res.period)
+            inside = x < 0.5 * res.duration_days
+            return float(np.median(f) - np.mean(f[inside])) if inside.sum() >= 3 else float("nan")
+
+        here = depth(0.0)
+        between = [depth(k * res.period / n) for k in range(1, n)]
+        if not here > 0 or not all(np.isfinite(between)):
+            return True
+        # nothing in between: under half the depth and under three times the noise of such a measurement
+        x = np.abs((t - res.t0 + 0.5 * res.period) % res.period - 0.5 * res.period)
+        noise = 1.4826 * np.median(np.abs(f - np.median(f))) / np.sqrt(max(int((x < 0.5 * res.duration_days).sum()), 1))
+        return max(between) >= min(0.5 * here, 3.0 * noise)
+    return False
+
+
 def search_additional(time, flat, flux_err, period, t0, t14_days, cfg: dict, sigma: float, max_signals: int = 1,
                       m_star: float = 1.0, r_star: float = 1.0, trace: list | None = None,
                       flux_raw: np.ndarray | None = None, on_pass=None) -> list[dict]:
@@ -262,6 +297,9 @@ def search_additional(time, flat, flux_err, period, t0, t14_days, cfg: dict, sig
         if keep.sum() < 500:
             break
         t, f = time[keep], work[keep]
+        # Dividing out a waveform can leave the baseline a few percent off 1 on a strongly variable star, and the
+        # search measures dips from 1: put the baseline back before looking.
+        f = f / np.median(f)
         e = flux_err[keep] if flux_err is not None else None
         resid_sigma = float(1.4826 * np.median(np.abs(f - np.median(f))))
         try:
@@ -282,7 +320,6 @@ def search_additional(time, flat, flux_err, period, t0, t14_days, cfg: dict, sig
                     "duration_hours": round(res.duration_days * 24.0, 2), "transits": int(epochs), "rank": rank + 1}
             # significant against white noise, and against what this star's residual does at other phases
             red_snr = phase_snr(t, f, res.period, res.t0, res.duration_days) if snr >= 7.1 else 0.0
-            step["phase_snr"] = round(red_snr, 1)
             white = snr >= 7.1 and epochs >= 2 and depth > 0
             significant = white and red_snr >= float(cfg.get("min_phase_snr", 6.0))
             wiggle = white and red_snr < 5.0  # clearly the star's own behaviour: worth dividing out
@@ -290,8 +327,7 @@ def search_additional(time, flat, flux_err, period, t0, t14_days, cfg: dict, sig
             # (TRAPPIST-1: 3:2, 5:3, 2:1 ...) are near those ratios but measurably off them, so that test must
             # be tight. No two bodies share nearly the same period, though, so close to 1:1 it can be loose:
             # that is the same signal again, drifting in phase or shape (spots, eclipse timing variations).
-            residue = any(abs(res.period / p - 1.0) < 0.03 or any(abs(res.period / p - h) / h < 0.0025 for h in HARMONICS)
-                          for p, _, _, _ in known)
+            residue = any(_is_residue(t, f, res, p) for p, _, _, _ in known)
             # A dip lasting far longer than any transit of this star could at this period is slow stellar
             # variability that survived detrending, and so is anything a smooth wave describes as well as a box.
             too_long = res.duration_days > 2.0 * max_transit_duration(res.period, m_star, r_star)

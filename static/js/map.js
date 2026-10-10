@@ -224,7 +224,7 @@
           <dt>Voyager 1 would arrive in</dt><dd>${fmtYears(h.d*VOY)}</dd>
           <dt>Parker Solar Probe, at its fastest</dt><dd>${fmtYears(h.d*299792.458/192)}</dd>
           <dt>An airliner</dt><dd>${fmtYears(h.d*299792.458/0.25)}</dd>
-          <dt>Star</dt><dd>${h.type?esc(h.type)+' · ':''}${h.teff?group(h.teff)+' K':'—'}${h.rad?' · '+sig(h.rad)+' R☉':''}</dd>
+          ${h.dsrc?`<dt>Distance from</dt><dd>${esc(h.dsrc)}</dd>`:''}<dt>Star</dt><dd>${h.type?esc(h.type)+' · ':''}${h.teff?group(h.teff)+' K':'—'}${h.rad?' · '+sig(h.rad)+' R☉':''}</dd>
           <dt>Brightness</dt><dd>${h.vmag!=null?'V = '+h.vmag+(h.vmag<=6?' · visible to the naked eye':h.vmag<=10?' · binoculars':' · telescope'):'—'}</dd>
           <dt>Where in the sky</dt><dd>RA ${(h.ra/15).toFixed(2)}h · Dec ${h.dec>0?'+':''}${h.dec.toFixed(1)}°</dd>
           <dt>Found by</dt><dd>${esc(methods)||'—'}</dd></dl>

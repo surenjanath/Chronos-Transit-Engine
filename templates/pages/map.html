@@ -70,7 +70,7 @@
           </div>
           <aside id="mapPanel" class="map-panel" aria-live="polite"></aside>
         </div>
-        <p class="legend-note" style="max-width:96ch">Positions come from each star’s measured sky position and distance in the NASA Exoplanet Archive{% if catalogue and catalogue.unplaced_planets %}; {{ catalogue.unplaced_planets }} planet{{ catalogue.unplaced_planets|pluralize }} with no measured distance {{ catalogue.unplaced_planets|pluralize:"is,are" }} left off rather than guessed{% endif %}. Rings are true distances from the Sun, so a star above or below the drawing plane appears inside its ring. Orbits are drawn to scale in size, seen from above. A dot marks where a planet is on its orbit today: for the Solar System from each planet’s mean motion, for other stars by counting orbits since a measured transit, when the planet stood on the line from its star to the Sun. A planet gets no dot when it has no measured transit time, or when its period is not known well enough to say where it is by now. Which way each orbit is turned on the sky is not in the catalogue. The Oort cloud and the edge of the Galaxy’s disc are approximate.</p>
+        <p class="legend-note" style="max-width:96ch">Positions come from each star’s measured sky position and distance in the NASA Exoplanet Archive, or from its Gaia parallax where the archive lists no distance{% if catalogue and catalogue.unplaced_planets %}; {{ catalogue.unplaced_planets }} planet{{ catalogue.unplaced_planets|pluralize }} with no measured distance {{ catalogue.unplaced_planets|pluralize:"is,are" }} left off rather than guessed{% endif %}. Rings are true distances from the Sun, so a star above or below the drawing plane appears inside its ring. Orbits are drawn to scale in size, seen from above. A dot marks where a planet is on its orbit today: for the Solar System from each planet’s mean motion, for other stars by counting orbits since a measured transit, when the planet stood on the line from its star to the Sun. A planet gets no dot when it has no measured transit time, or when its period is not known well enough to say where it is by now. Which way each orbit is turned on the sky is not in the catalogue. The Oort cloud and the edge of the Galaxy’s disc are approximate.</p>
       </section>
 
       <section class="sheet">
@@ -116,6 +116,6 @@
 
 {% block page_js %}
 {{ ctx|json_script:"mapContext" }}
-<script src="{% static 'js/map.js' %}?v=3"></script>
+<script src="{% static 'js/map.js' %}?v=4"></script>
 <script>CTEMap(document.getElementById('map'), jsonData('mapContext'));</script>
 {% endblock %}

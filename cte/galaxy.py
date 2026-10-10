@@ -29,7 +29,7 @@ SOURCE = "NASA Exoplanet Archive · Planetary Systems Composite Parameters"
 
 COLUMNS = ("pl_name,hostname,ra,dec,glon,glat,sy_dist,sy_pnum,sy_snum,pl_rade,pl_bmasse,pl_orbper,pl_orbsmax,pl_eqt,pl_insol,"
            "st_teff,st_rad,st_mass,st_spectype,disc_year,discoverymethod,disc_facility,sy_vmag,tic_id,hd_name,hip_name,"
-           "sy_plx,pl_tranmid,pl_orbpererr1,pl_orbpererr2")
+           "sy_plx,sy_gaiamag,pl_tranmid,pl_orbpererr1,pl_orbpererr2")
 
 # J2000 equatorial -> galactic rotation (IAU 1958 system, Hipparcos values)
 _TO_GALACTIC = ((-0.0548755604162154, -0.8734370902348850, -0.4838350155487132),
@@ -88,6 +88,8 @@ def build_systems(rows: list[dict]) -> dict:
                 "type": r.get("st_spectype"), "vmag": _round(r.get("sy_vmag"), 2), "stars": r.get("sy_snum"),
                 "ids": [v for v in (r.get("tic_id"), r.get("hd_name"), r.get("hip_name")) if v], "planets": [],
             }
+            if r.get("sy_dist") is None:  # say where the distance came from when it is not the archive's own
+                h["dsrc"] = r.get("distance_from") or "parallax in the archive"
         h["planets"].append({
             "name": r["pl_name"], "r": _round(r.get("pl_rade"), 3), "m": _round(r.get("pl_bmasse"), 2),
             "P": _round(r.get("pl_orbper"), 8), "a": _round(r.get("pl_orbsmax"), 5), "T": _round(r.get("pl_eqt"), 0),
@@ -114,12 +116,57 @@ def build_systems(rows: list[dict]) -> dict:
     }
 
 
+GAIA_TAP = "https://gea.esac.esa.int/tap-server/tap/sync"
+
+
+def gaia_parallax(ra: float, dec: float, magnitude: float, timeout: float = 30.0) -> float | None:
+    """Gaia DR3 parallax (mas) of the star at this position, or None. It must be the same star - within one
+    arcsecond and within one magnitude of the brightness the archive lists - with a parallax measured to better
+    than one part in five: a distance is taken from a measurement or not at all. (A pulsar in a globular cluster
+    has plenty of unrelated Gaia stars within an arcsecond.)"""
+    import urllib.parse
+    import urllib.request
+    query = ("SELECT parallax, parallax_over_error, phot_g_mean_mag, DISTANCE(POINT('ICRS',ra,dec),POINT('ICRS',{ra},{dec}))*3600 AS sep "
+             "FROM gaiadr3.gaia_source WHERE 1=CONTAINS(POINT('ICRS',ra,dec),CIRCLE('ICRS',{ra},{dec},{r}))").format(ra=ra, dec=dec, r=1.0 / 3600)
+    url = GAIA_TAP + "?" + urllib.parse.urlencode({"REQUEST": "doQuery", "LANG": "ADQL", "FORMAT": "json", "QUERY": query})
+    try:
+        with urllib.request.urlopen(url, timeout=timeout) as resp:
+            data = json.load(resp)["data"]
+    except Exception:  # the map must build without Gaia
+        return None
+    good = [(sep, plx) for plx, snr, mag, sep in data
+            if plx is not None and snr is not None and mag is not None and plx > 0 and snr >= 5.0 and abs(mag - magnitude) <= 1.0]
+    return float(min(good)[1]) if good else None
+
+
+def fill_missing_distances(rows: list[dict], limit: int = 60) -> int:
+    """For hosts the archive lists with neither a distance nor a parallax, look the parallax up in Gaia DR3."""
+    cache: dict[str, float | None] = {}
+    filled = 0
+    for r in rows:
+        if r.get("sy_dist") is not None or r.get("sy_plx") or r.get("ra") is None or r.get("dec") is None:
+            continue
+        name = r["hostname"]
+        magnitude = r.get("sy_gaiamag") if r.get("sy_gaiamag") is not None else r.get("sy_vmag")
+        if magnitude is None:
+            continue
+        if name not in cache:
+            if len(cache) >= limit:
+                break
+            cache[name] = gaia_parallax(float(r["ra"]), float(r["dec"]), float(magnitude))
+        if cache[name]:
+            r["sy_plx"], r["distance_from"] = cache[name], "Gaia DR3 parallax"
+            filled += 1
+    return filled
+
+
 def fetch_systems(timeout: float = 40.0) -> dict:
     """Download every confirmed planet from the archive and write the placed systems to disk."""
     from .archive import _tap
     rows = _tap(f"select {COLUMNS} from pscomppars", timeout)
     if len(rows) < 1000:
         raise RuntimeError(f"the archive returned only {len(rows)} planets; keeping the previous catalogue")
+    fill_missing_distances(rows)
     out = build_systems(rows)
     CATALOG_DIR.mkdir(parents=True, exist_ok=True)
     tmp = SYSTEMS.with_suffix(".tmp")
