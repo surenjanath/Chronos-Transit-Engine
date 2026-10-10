@@ -288,8 +288,10 @@ def test_map_places_real_positions_only(client, tmp_path, monkeypatch):
 
     from cte import galaxy
     rows = [{"pl_name": "Near b", "hostname": "Near", "ra": 266.40499, "dec": -28.93617, "sy_dist": 2.0, "pl_orbper": 5.0,
-             "pl_rade": 1.1, "pl_orbsmax": 0.05, "discoverymethod": "Transit", "disc_year": 2020, "sy_vmag": 5.0},
-            {"pl_name": "Lost b", "hostname": "Lost", "ra": 1.0, "dec": 2.0, "sy_dist": None}]
+             "pl_rade": 1.1, "pl_orbsmax": 0.05, "discoverymethod": "Transit", "disc_year": 2020, "sy_vmag": 5.0,
+             "pl_tranmid": 2455000.5, "pl_orbpererr1": 2e-6, "pl_orbpererr2": -3e-6},
+            {"pl_name": "Lost b", "hostname": "Lost", "ra": 1.0, "dec": 2.0, "sy_dist": None},
+            {"pl_name": "Parallax b", "hostname": "Parallax", "ra": 10.0, "dec": 20.0, "sy_dist": None, "sy_plx": 100.0}]
     monkeypatch.setattr(galaxy, "SYSTEMS", tmp_path / "systems.json")
     galaxy.SYSTEMS.write_text(json.dumps(galaxy.build_systems(rows)))
     galaxy._cache.clear()
@@ -298,8 +300,11 @@ def test_map_places_real_positions_only(client, tmp_path, monkeypatch):
     html = page.content.decode()
     assert "1 planet with no measured distance is left off" in html and "Near" in html and "6.52 ly" in html
     data = client.get(reverse("map_data")).json()
-    assert [h["name"] for h in data["systems"]] == ["Near"]            # the star without a distance is not given one
+    assert [h["name"] for h in data["systems"]] == ["Near", "Parallax"]  # the star without a distance is not given one
     assert abs(data["systems"][0]["d"] - 2.0 * galaxy.LY_PER_PC) < 1e-3
+    assert abs(data["systems"][1]["d"] - 10.0 * galaxy.LY_PER_PC) < 1e-3  # a parallax of 100 mas is 10 parsecs
+    near = data["systems"][0]["planets"][0]                               # what the map needs to place the planet today
+    assert near["t0"] == 2455000.5 and near["Pe"] == 3e-6 and data["systems"][1]["planets"][0]["t0"] is None
     assert 160 < page.context["ctx"]["voyager1"]["au"] < 200 and page.context["ctx"]["radio_ly"] > 100
     galaxy._cache.clear()
 

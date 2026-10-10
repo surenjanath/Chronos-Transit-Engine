@@ -28,7 +28,8 @@ GALACTIC_CENTRE_LY = 26670.0   # 8.178 kpc (GRAVITY Collaboration 2019)
 SOURCE = "NASA Exoplanet Archive · Planetary Systems Composite Parameters"
 
 COLUMNS = ("pl_name,hostname,ra,dec,glon,glat,sy_dist,sy_pnum,sy_snum,pl_rade,pl_bmasse,pl_orbper,pl_orbsmax,pl_eqt,pl_insol,"
-           "st_teff,st_rad,st_mass,st_spectype,disc_year,discoverymethod,disc_facility,sy_vmag,tic_id,hd_name,hip_name")
+           "st_teff,st_rad,st_mass,st_spectype,disc_year,discoverymethod,disc_facility,sy_vmag,tic_id,hd_name,hip_name,"
+           "sy_plx,pl_tranmid,pl_orbpererr1,pl_orbpererr2")
 
 # J2000 equatorial -> galactic rotation (IAU 1958 system, Hipparcos values)
 _TO_GALACTIC = ((-0.0548755604162154, -0.8734370902348850, -0.4838350155487132),
@@ -66,12 +67,15 @@ def build_systems(rows: list[dict]) -> dict:
     unplaced: dict[str, int] = {}
     for r in rows:
         name = r["hostname"]
-        if r.get("sy_dist") is None or r.get("ra") is None or r.get("dec") is None:
+        dist_pc = r.get("sy_dist")
+        if dist_pc is None and r.get("sy_plx") and float(r["sy_plx"]) > 0:
+            dist_pc = 1000.0 / float(r["sy_plx"])  # no adopted distance, but a measured parallax gives one
+        if dist_pc is None or r.get("ra") is None or r.get("dec") is None:
             unplaced[name] = unplaced.get(name, 0) + 1
             continue
         h = hosts.get(name)
         if h is None:
-            d_ly = float(r["sy_dist"]) * LY_PER_PC
+            d_ly = float(dist_pc) * LY_PER_PC
             if r.get("glon") is not None and r.get("glat") is not None:
                 l, b = float(r["glon"]), float(r["glat"])
             else:
@@ -86,9 +90,12 @@ def build_systems(rows: list[dict]) -> dict:
             }
         h["planets"].append({
             "name": r["pl_name"], "r": _round(r.get("pl_rade"), 3), "m": _round(r.get("pl_bmasse"), 2),
-            "P": _round(r.get("pl_orbper"), 5), "a": _round(r.get("pl_orbsmax"), 5), "T": _round(r.get("pl_eqt"), 0),
+            "P": _round(r.get("pl_orbper"), 8), "a": _round(r.get("pl_orbsmax"), 5), "T": _round(r.get("pl_eqt"), 0),
             "S": _round(r.get("pl_insol"), 2), "year": r.get("disc_year"), "method": r.get("discoverymethod"),
             "by": r.get("disc_facility"),
+            # a measured transit time and the period's uncertainty: enough to say where on its orbit the planet is today
+            "t0": _round(r.get("pl_tranmid"), 5),
+            "Pe": _round(max(abs(float(r.get("pl_orbpererr1") or 0.0)), abs(float(r.get("pl_orbpererr2") or 0.0))) or None, 9),
         })
     systems = sorted(hosts.values(), key=lambda h: h["d"])
     for h in systems:

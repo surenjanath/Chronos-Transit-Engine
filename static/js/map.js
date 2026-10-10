@@ -5,6 +5,13 @@
   const cssv=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
   const AU=1/63241.077, TAU=6.283185307;                       // one astronomical unit in light-years
   const SOLAR=[['Mercury',0.387],['Venus',0.723],['Earth',1],['Mars',1.524],['Jupiter',5.203],['Saturn',9.537],['Uranus',19.19],['Neptune',30.07]];
+  // Where each planet is today. Solar System: mean longitude at J2000 (degrees) and its daily motion.
+  const SOLAR_NOW={Mercury:[252.251,4.0923344],Venus:[181.980,1.6021303],Earth:[100.464,0.9856474],Mars:[355.453,0.5240207],Jupiter:[34.404,0.0830853],Saturn:[49.944,0.0334441],Uranus:[313.232,0.0117283],Neptune:[304.880,0.0059810]};
+  const JD_NOW=Date.now()/86400000+2440587.5;
+  const solarAngle=name=>{ const e=SOLAR_NOW[name]; return e?-((e[0]+e[1]*(JD_NOW-2451545.0))%360)*Math.PI/180:null; };   // anticlockwise seen from the north
+  // Another star's planet: orbits since its last measured transit. At transit it lies between its star and Earth, so
+  // the angle is counted from the direction of the Sun on the map. Only shown while the period is known well enough that the position has drifted under 1/20 of an orbit.
+  const transitAngle=p=>{ if(p.t0==null||!p.P||!p.Pe) return null; const n=(JD_NOW-p.t0)/p.P; if(Math.abs(n)*p.Pe/p.P>0.05) return null; return -(n-Math.floor(n))*2*Math.PI; };
   const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   const group=v=>Math.round(v).toLocaleString('en-US');
   const sig=(v,n=3)=>{ if(!isFinite(v)||v===0) return '0'; const d=Math.max(0,n-1-Math.floor(Math.log10(Math.abs(v)))); return v>=1000?group(+v.toPrecision(n)):(+v.toFixed(d)).toString(); };
@@ -93,11 +100,14 @@
         if(b<2||a>2*Math.hypot(W,H)) return;
         g.save(); g.globalAlpha=alpha; g.fillStyle=C.mute; g.beginPath(); g.arc(x,y,b,0,TAU); g.arc(x,y,Math.max(a,0),0,TAU,true); g.fill('evenodd'); g.restore();
       };
-      const orbits=(wx,wy,list,star)=>{                          // orbits, to scale in size, drawn face-on
+      const orbits=(wx,wy,list,star)=>{                          // orbits, to scale in size, seen from above, with each planet where it is today when that is known
         const amax=Math.max(...list.map(p=>p[1]))*AU/cam().s; if(!(amax>5)) return;
         if(star && star.lum){ const a=Math.sqrt(star.lum/1.1)*AU, b=Math.sqrt(star.lum/0.53)*AU; band(wx,wy,a,b,0.13);
           if(b/cam().s>40) label('Liquid-water zone',X(wx),Y(wy)+(a+b)/2/cam().s,{align:'center'}); }
         list.forEach((p,i)=>ring(wx,wy,p[1]*AU,{color:p[2]||C.ink,label:p[0],labelColor:p[2]||C.ink,labelMin:9,angle:-Math.PI/2+(i%2?0.5:-0.5)+i*0.9}));
+        const home=star && !star.sun?Math.atan2(Y(0)-Y(wy),X(0)-X(wx)):0;
+        list.forEach(p=>{ const rp=p[1]*AU/cam().s; if(p[3]==null||rp<9||rp>4*Math.hypot(W,H)) return;                 // the planet itself, where it is today
+          g.save(); g.fillStyle=p[2]||C.ink; g.strokeStyle=C.canvas; g.lineWidth=1.5; g.beginPath(); g.arc(X(wx)+rp*Math.cos(home+p[3]),Y(wy)+rp*Math.sin(home+p[3]),3.2,0,TAU); g.fill(); g.stroke(); g.restore(); });
         if(star && !star.sun && amax<400) ring(wx,wy,AU,{color:C.ok,dash:[3,4],label:'Earth’s orbit, for scale',labelColor:C.ok,labelMin:14,angle:Math.PI/2});
       };
 
@@ -124,7 +134,7 @@
         band(0,0,2000*AU,100000*AU,0.07); if(100000*AU/s>80 && 2000*AU/s<Math.max(W,H)) label('Oort cloud (inferred; never seen directly)',X(0),Y(0)+Math.min(50000*AU/s,H*0.4),{align:'center'});
         ring(0,0,121*AU,{dash:[4,4],label:'Heliopause · the Sun’s wind stops here',min:22,labelMin:40,angle:Math.PI*0.25});
         ring(0,0,ctx.radio_ly,{color:C.ok,dash:[1,4],label:`Radio bubble · the farthest any human broadcast has reached (${ctx.radio_ly} light-years, since 1906)`,labelColor:C.ok,min:14,labelMin:30,angle:-Math.PI*0.25});
-        orbits(0,0,SOLAR.map(p=>[p[0],p[1],p[0]==='Earth'?C.ok:null]),{sun:true,lum:1});
+        orbits(0,0,SOLAR.map(p=>[p[0],p[1],p[0]==='Earth'?C.ok:null,solarAngle(p[0])]),{sun:true,lum:1});
         // Voyager 1
         const v=ctx.voyager1, vp=view==='top'?[v.x,v.y]:[v.x,v.z], vx=X(vp[0]), vy=Y(vp[1]), vr=Math.hypot(vp[0],vp[1])/s;
         if(vr>18 && vr<6*Math.hypot(W,H)){
@@ -138,7 +148,7 @@
       visible=[];
       for(const h of systems){ if(!h._on) continue; const p=P(h), x=X(p[0]), y=Y(p[1]); if(x<-8||x>W+8||y<-8||y>H+8) continue; h._x=x; h._y=y; visible.push(h); }
       const n=visible.length, dense=n>1500?0.42:n>500?0.6:n>150?0.8:1, base=n>1500?1.3:n>500?1.7:n>120?2.2:3;
-      if(view!=='sky') for(const h of visible){ if(h._amax && h._amax*AU/cam().s>5) orbits(P(h)[0],P(h)[1],h.planets.filter(p=>p.a!=null).map(p=>[p.name.replace(h.name,'').trim()||p.name,p.a]),{lum:h._lum}); }
+      if(view!=='sky') for(const h of visible){ if(h._amax && h._amax*AU/cam().s>5) orbits(P(h)[0],P(h)[1],h.planets.filter(p=>p.a!=null).map(p=>[p.name.replace(h.name,'').trim()||p.name,p.a,null,transitAngle(p)]),{lum:h._lum}); }
       if(sel && view!=='sky'){ const p=P(sel); g.save(); g.strokeStyle=C.ink; g.setLineDash([5,4]); g.beginPath(); g.moveTo(X(0),Y(0)); g.lineTo(X(p[0]),Y(p[1])); g.stroke(); g.restore();
         const mx=(X(0)+X(p[0]))/2, my=(Y(0)+Y(p[1]))/2; if(Math.hypot(X(p[0])-X(0),Y(p[1])-Y(0))>120) label(fmtDist(sel.d)+' from the Sun',mx,my-10,{align:'center',color:C.ink,force:true}); }
       g.save(); g.globalAlpha=dense; g.fillStyle=C.ink;
