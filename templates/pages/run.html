@@ -100,7 +100,7 @@
               <dt>Depth: fitted · min-bin · BLS</dt><dd>{{ res.depth.adopted_ppm|num:0 }} · {{ res.depth.min_bin_ppm|num:0 }} · {{ res.depth.bls_ppm|num:0 }} ppm</dd>
             </dl>
             {% for a in res.additional_signals %}
-            <p class="flagline"><b>SECOND_SIGNAL</b>With the main transit masked, another periodic dip remains: P = {{ a.period_days|num:4 }} d, {{ a.depth_ppm|num:0 }} ppm, {{ a.duration_hours|num:1 }} h, S/N {{ a.snr|num:1 }} over {{ a.transits }} transits. Possibly a second planet.</p>
+            <p class="flagline"><b>SECOND_SIGNAL</b>With the main transit masked, another periodic dip remains: P = {{ a.period_days|num:4 }} d, {{ a.depth_ppm|num:0 }} ppm, {{ a.duration_hours|num:1 }} h, S/N {{ a.snr|num:1 }} over {{ a.transits }} transits.{% if a.classification %} The classifier calls it {{ a.classification.prediction|lower_words }}: {{ a.classification.probabilities.PLANET_CANDIDATE|pct:0 }} planet, {{ a.classification.probabilities.ECLIPSING_BINARY|pct:0 }} eclipsing binary, {{ a.classification.probabilities.STELLAR_OR_INSTRUMENT_NOISE|pct:0 }} noise{% if a.classification.radius_earth %}; {{ a.classification.radius_earth|num:1 }} R⊕ if a planet{% endif %}.{% else %} Not classified; possibly a second planet.{% endif %}</p>
             {% endfor %}
             {% if res.archive_match %}
             <h3 style="font-size:14px;font-weight:500;margin:22px 0 6px">NASA Exoplanet Archive cross-match</h3>

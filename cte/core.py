@@ -40,6 +40,59 @@ def decide_disposition(prediction: str, p_planet: float, flags: list[dict], snr:
     return "CONFIRMED_VETTING_QUEUE" if p_planet >= cfg["planet_confidence"] else "MANUAL_REVIEW"
 
 
+def classify_further(signal: dict, others: list[tuple[float, float, float]], t, f, e, cents, segment, stellar: dict,
+                     cfg: dict, kepid=None) -> dict | None:
+    """Put a further signal through the same vetting and classifier as the first one.
+
+    The transits of every other signal on the star are cut out first, the curve is detrended again stepping over
+    this signal's own transits, and everything the classifier looks at is measured afresh - as is done for the
+    second and third signals of a star in the training set."""
+    period, t0, dur = signal["period_days"], signal["t0"], signal["duration_hours"] / 24.0
+    keep = np.ones(len(t), bool)
+    for p2, t2, d2 in others:
+        keep &= np.abs((t - t2 + 0.5 * p2) % p2 - 0.5 * p2) > 0.9 * d2
+    if keep.sum() < 500:
+        return None
+    t, f = t[keep], f[keep]
+    cents = [c[keep] if c is not None else None for c in cents] if cents is not None else None
+    segment = segment[keep] if segment is not None else None
+    x = (t - t0 + 0.5 * period) % period - 0.5 * period
+    if (np.abs(x) < 0.5 * dur).sum() < 5:
+        return None
+    flat = f / savgol_detrend(t, f, cfg["detrend_window_days"], int(cfg["detrend_polyorder"]), transit_mask=np.abs(x) < dur)[0]
+    core_x = np.abs(x) < 0.25 * dur
+    depth0 = max(float(1.0 - np.median(flat[core_x])) if core_x.any() else 1e-4, 1e-5)
+    fit = fit_trapezoid(x, flat, depth0, dur, float(np.median(np.diff(t))))
+    depth = fit["depth"] if fit["converged"] and fit["depth"] > 0 else depth0
+    t0, t14 = t0 + fit["dt0"], fit["t14"]
+    q_local = float(np.clip(t14 / period, 0.004, 0.15))
+    phase, folded, _ = TransitAnalyticsEngine.phase_fold(t, flat, period, t0)
+    g_vec = global_view(phase, folded, int(cfg["global_bins"]))
+    l_vec = local_view(phase, folded, q_local, int(cfg["local_bins"]))
+    l_stack = local_channels(t, flat, period, t0, q_local, int(cfg["local_bins"]))
+    if not (np.isfinite(g_vec).all() and np.isfinite(l_stack).all()):
+        return None
+    params = derive(StellarParameters(stellar["t_eff_k"], stellar["r_star_solar"], stellar["m_star_solar"]), period, depth,
+                    cfg["impact_param"], cfg["bond_albedo"])
+    diag, flags = diagnose(t, flat, period, t0, t14, depth, params, cents)
+    cnn_probs = model.predict(g_vec, l_stack)
+    extra = extended(t, f, flat, period, t0, t14, fit["t12"], depth, diag,
+                     (stellar["t_eff_k"], stellar["r_star_solar"], stellar["m_star_solar"]), float(l_vec.min()), segment)
+    if kepid:
+        try:
+            extra[-N_PIXEL:] = pixels.measure_star(int(kepid), period, t0, t14, budget_s=45.0)
+        except Exception:
+            pass
+    probs = cnn_probs
+    combined = stack.predict([cnn_probs[n] for n in CLASS_NAMES], stack.aux_from(depth, fit["v_shape"], diag, params["radius_earth"]), extra)
+    if combined is not None:
+        probs = {name: round(float(p), 4) for name, p in zip(CLASS_NAMES, combined[0])}
+    prediction = max(probs, key=probs.get)
+    return {"prediction": prediction, "probabilities": probs,
+            "disposition": decide_disposition(prediction, probs["PLANET_CANDIDATE"], flags, diag["snr"], cfg),
+            "radius_earth": params["radius_earth"], "flags": [fl["code"] for fl in flags]}
+
+
 def process(data: ingest.LightCurveData, cfg: dict, log: RunLogger,
             on_stage: Callable[[str, float], None] | None = None,
             on_note: Callable[[str], None] | None = None) -> tuple[dict, dict]:
@@ -303,6 +356,18 @@ def process(data: ingest.LightCurveData, cfg: dict, log: RunLogger,
                                                       stellar["m_star_solar"], stellar["r_star_solar"], search_trace, flux_raw=f,
                                                       on_pass=lambda n, limit, text: (stage("REFINED_ANALYSIS", min(0.95, n / (limit + 1))), note(text)))
     results["additional_search"] = search_trace  # every peak examined and what was decided about it
+    if results["additional_signals"]:
+        note("Asking the classifier about each further signal: planet, eclipsing binary, or noise?")
+        first_is_dip = prediction != "STELLAR_OR_INSTRUMENT_NOISE" and t14 < 0.15 * bls.period
+        every = ([(bls.period, t0, t14)] if first_is_dip else []) + [(a["period_days"], a["t0"], a["duration_hours"] / 24.0)
+                                                                      for a in results["additional_signals"]]
+        for a in results["additional_signals"]:
+            mine = (a["period_days"], a["t0"], a["duration_hours"] / 24.0)
+            try:
+                a["classification"] = classify_further(a, [o for o in every if o != mine], t, f, e, cents_k, segment_k, stellar, cfg,
+                                                       kepid if data.meta.get("mission") == "Kepler" else None)
+            except Exception:  # a further signal's verdict is extra evidence; failing to get one must not fail the run
+                a["classification"] = None
     log.info("Refined analysis complete", "REFINED_ANALYSIS",
              limb_darkened_fit={k: v for k, v in refined.items() if k != "curve"}, additional_signals=results["additional_signals"],
              additional_search=search_trace)

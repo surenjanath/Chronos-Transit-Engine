@@ -213,7 +213,7 @@
       }
       const h=sel, m=mine.get(h.name), yr=ctx.year-h.d, left=yr>0?`the year ${Math.round(yr)}`:`${group(Math.round(-yr)+1)} BCE`;
       const methods=[...new Set(h.planets.map(p=>p.method).filter(Boolean))].join(', ');
-      const rows=h.planets.map(p=>`<tr><td>${esc(p.name)}<span class="sub">${p.year||''}${p.method?' · '+esc(p.method):''}</span></td><td class="r num">${p.r!=null?sig(p.r)+' R⊕':'—'}</td><td class="r num">${p.P!=null?sig(p.P)+' d':'—'}</td><td class="r num">${p.a!=null?sig(p.a)+' AU':'—'}</td></tr>`).join('');
+      const rows=h.planets.map(p=>`<tr><td>${esc(p.name)}<span class="sub">${p.year||''}${p.method?' · '+esc(p.method):''}</span></td><td class="r num">${p.r!=null?sig(p.r)+' R⊕':'—'}</td><td class="r num">${p.P!=null?sig(p.P)+' d':'—'}</td><td class="r num">${p.a!=null?sig(p.a)+' AU':'—'}</td><td class="r num">${p.i!=null?p.i.toFixed(1)+'°':'—'}</td></tr>`).join('');
       const rmax=Math.max(11.2,...h.planets.map(p=>p.r||0)), px=r=>Math.max(1.5,r/rmax*26);
       const discs=[['Earth',1,'ok'],...h.planets.filter(p=>p.r!=null).map(p=>[p.name.replace(h.name,'').trim()||p.name,p.r,'ink']),['Jupiter',11.2,'mute']]
         .map(d=>`<span class="map-disc"><i style="width:${2*px(d[1])}px;height:${2*px(d[1])}px;background:var(--${d[2]})"></i>${esc(d[0])}</span>`).join('');
@@ -229,7 +229,7 @@
           <dt>Where in the sky</dt><dd>RA ${(h.ra/15).toFixed(2)}h · Dec ${h.dec>0?'+':''}${h.dec.toFixed(1)}°</dd>
           <dt>Found by</dt><dd>${esc(methods)||'—'}</dd></dl>
         <h3 style="font-size:13px;font-weight:500;margin:18px 0 6px">${h.planets.length} known planet${h.planets.length>1?'s':''}</h3>
-        <table class="mini"><thead><tr><th>Planet</th><th class="r">Radius</th><th class="r">Period</th><th class="r">Orbit size</th></tr></thead><tbody>${rows}</tbody></table>
+        <table class="mini"><thead><tr><th>Planet</th><th class="r">Radius</th><th class="r">Period</th><th class="r">Orbit size</th><th class="r" title="Tilt of the orbit to our line of sight: 90° is edge-on, 0° is face-on">Tilt</th></tr></thead><tbody>${rows}</tbody></table>
         ${h.planets.some(p=>p.r!=null)?`<h3 style="font-size:13px;font-weight:500;margin:16px 0 8px">Sizes, to scale</h3><div class="map-discs">${discs}</div>`:''}
         <div class="actions" style="flex-wrap:wrap">
           <button type="button" class="go sm" data-act="journey">Travel there from Earth</button>

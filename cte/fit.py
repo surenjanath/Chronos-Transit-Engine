@@ -230,7 +230,8 @@ def _is_residue(t, f, res, known_period: float) -> bool:
         # nothing in between: under half the depth and under three times the noise of such a measurement
         x = np.abs((t - res.t0 + 0.5 * res.period) % res.period - 0.5 * res.period)
         noise = 1.4826 * np.median(np.abs(f - np.median(f))) / np.sqrt(max(int((x < 0.5 * res.duration_days).sum()), 1))
-        return max(between) >= min(0.5 * here, 3.0 * noise)
+        # a brightening in between counts too: it is what is left of unequal eclipses once their average is divided out
+        return max(abs(v) for v in between) >= min(0.5 * here, 3.0 * noise)
     return False
 
 

@@ -29,7 +29,7 @@ SOURCE = "NASA Exoplanet Archive · Planetary Systems Composite Parameters"
 
 COLUMNS = ("pl_name,hostname,ra,dec,glon,glat,sy_dist,sy_pnum,sy_snum,pl_rade,pl_bmasse,pl_orbper,pl_orbsmax,pl_eqt,pl_insol,"
            "st_teff,st_rad,st_mass,st_spectype,disc_year,discoverymethod,disc_facility,sy_vmag,tic_id,hd_name,hip_name,"
-           "sy_plx,sy_gaiamag,pl_tranmid,pl_orbpererr1,pl_orbpererr2")
+           "sy_plx,sy_gaiamag,pl_tranmid,pl_orbpererr1,pl_orbpererr2,pl_orbincl")
 
 # J2000 equatorial -> galactic rotation (IAU 1958 system, Hipparcos values)
 _TO_GALACTIC = ((-0.0548755604162154, -0.8734370902348850, -0.4838350155487132),
@@ -96,6 +96,7 @@ def build_systems(rows: list[dict]) -> dict:
             "S": _round(r.get("pl_insol"), 2), "year": r.get("disc_year"), "method": r.get("discoverymethod"),
             "by": r.get("disc_facility"),
             # a measured transit time and the period's uncertainty: enough to say where on its orbit the planet is today
+            "i": _round(r.get("pl_orbincl"), 2),  # tilt of the orbit to our line of sight; 90 is edge-on
             "t0": _round(r.get("pl_tranmid"), 5),
             "Pe": _round(max(abs(float(r.get("pl_orbpererr1") or 0.0)), abs(float(r.get("pl_orbpererr2") or 0.0))) or None, 9),
         })
