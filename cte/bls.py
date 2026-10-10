@@ -191,13 +191,32 @@ def refine_ephemeris(
         p_grid = period + np.linspace(-dperiod, dperiod, n_period)
         t_grid = t0 + np.linspace(-0.5, 0.5, n_t0) * duration
         stat = np.zeros((n_period, n_t0))
+        wy_s = w_s * y_s
+        shift = t_grid - t0
+        # Every trial t0 is the same fold shifted sideways, so fold once per period, sort, and read each trial's
+        # in-transit sums off running totals. That is valid while the windows stay clear of the fold's edge.
+        fast = margin + 1.5 * duration < 0.5 * (period - dperiod)
         for i, p in enumerate(p_grid):
-            x = np.abs((t_s[None, :] - t_grid[:, None] + 0.5 * p) % p - 0.5 * p)
-            inside = x < 0.5 * duration
-            r = inside @ w_s
-            s = inside @ (w_s * y_s)
+            if fast:
+                d = t_s - t0 + 0.5 * p
+                d -= p * np.floor(d / p)
+                d -= 0.5 * p
+                order = np.argsort(d, kind="stable")
+                d = d[order]
+                cw = np.concatenate(([0.0], np.cumsum(w_s[order])))
+                cy = np.concatenate(([0.0], np.cumsum(wy_s[order])))
+                lo = np.searchsorted(d, shift - 0.5 * duration, side="right")
+                hi = np.searchsorted(d, shift + 0.5 * duration, side="left")
+                r, s = cw[hi] - cw[lo], cy[hi] - cy[lo]
+            else:
+                x = np.abs((t_s[None, :] - t_grid[:, None] + 0.5 * p) % p - 0.5 * p)
+                inside = x < 0.5 * duration
+                r = inside @ w_s
+                s = inside @ wy_s
             ok = (s < 0) & (r > 0) & (r < w_total)
             stat[i, ok] = s[ok] ** 2 / (r[ok] * (1 - r[ok]))
+        if stat.max() > 0:  # trials that hold the same samples must tie exactly, whichever way their sums were added up
+            stat = np.round(stat / stat.max(), 10) * stat.max()
         by_p = stat.max(axis=1)
         peak = by_p.max()
         if peak <= 0:

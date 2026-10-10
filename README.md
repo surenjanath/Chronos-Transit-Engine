@@ -324,7 +324,7 @@ this raised exact period recovery from 24 to 27 of 30.
 The period search splits its trial periods across CPU cores using a pool of worker processes that is started on the
 first run and reused. The primary search of a six-quarter Kepler star (22,000 cadences, 60,000 trial periods) takes about 7 s,
 against 43 s single-threaded; the periodogram is bit-for-bit identical. (Those timings predate a rewrite of the inner loop that made
-both paths about 2.9 times faster, again with an identical periodogram.) `CTE_BLS_WORKERS=1` forces the serial path.
+both paths about 2.9 times faster, again with an identical periodogram; see Known limits for current run times.) `CTE_BLS_WORKERS=1` forces the serial path.
 
 Two experimental options exist and are off by default because they measured no benefit (17 of 36 injected planets
 recovered on variable Kepler stars either way): `adaptive_detrend` (shorten the Savitzky-Golay window until the
@@ -336,10 +336,10 @@ residuals are white) and `remove_periodic_variability` (divide out a non-transit
   signal. Both misses have a signal-to-noise near 10 against the star's own correlated noise; in one the right period
   was examined and judged not significant. Loosening that test to catch them would raise the spurious rate, so the
   balance is left where it is. Additional signals are candidates for inspection, not classified detections.
-- **Speed.** A four-year Kepler star (60,000 cadences) takes about half a minute, longer on variable stars where the
-  further-signal search makes several passes. The period search is 2.9 times faster than it was, with a bit-for-bit
-  identical periodogram (Kepler-8 end to end: 44 s before, 32 s after, on a machine busy with other work). A Kepler
-  run also spends 5–10 s fetching pixel files. A 27-day TESS sector takes a few seconds.
+- **Speed.** A four-year Kepler star (60,000 cadences) now takes 15 s when quiet and 25–40 s when variable, down from
+  27 s and 60–140 s on the same stars and machine. Two inner loops were rewritten: the period search (2.9 times faster,
+  periodogram bit-for-bit identical) and the ephemeris refinement (7 times faster, same period to 13 digits). 3–5 s of a
+  Kepler run is spent fetching pixel files. A 27-day TESS sector takes a few seconds.
 - **The map.** 4,202 of 6,418 planets are drawn where they are on their orbit today, from a measured transit time and
   period; the rest have no transit time, or a period too uncertain to say where they are by now. Which way an orbit is
   turned on the sky is not in the catalogue. 27 planets with neither a distance nor a parallax are left off.
