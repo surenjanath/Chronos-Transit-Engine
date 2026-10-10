@@ -1,0 +1,1242 @@
+{
+  "appName": "Chronos Transit Engine",
+  "tagline": "Finds planets in starlight",
+  "platform": "web",
+  "brand": {
+    "primary": "#1c1c1c",
+    "primaryLight": "#2e2e2b",
+    "primaryDark": "#111110",
+    "gold": "#b4533c",
+    "silver": "#c4c4be",
+    "platinum": "#8a8a85",
+    "bg": "#e6e6e4",
+    "surface": "#f4f4f2",
+    "textPrimary": "#1c1c1c",
+    "textSecondary": "#5c5c57",
+    "success": "#3f7a52"
+  },
+  "scenes": [
+    {
+      "id": "intro",
+      "image": null,
+      "eyebrow": "A complete walkthrough",
+      "title": "Chronos Transit Engine",
+      "narration": "This is the Chronos Transit Engine. It takes a star's brightness over time from NASA's TESS, Kepler and K2 missions, searches it for the small, regular dips a planet makes when it crosses its star, measures that planet, and decides whether the dip is a planet, an eclipsing binary, or noise. Let's walk through the whole system.",
+      "seconds": 22
+    },
+    {
+      "id": "overview",
+      "image": "01_overview.png",
+      "eyebrow": "Overview",
+      "title": "Current conditions at a glance",
+      "narration": "The overview is the home page. Here the archive holds one hundred and five target stars and one hundred and seventeen completed runs. Thirty-seven signals were sent to vetting as planet candidates, thirty-five were flagged as false positives, and forty-nine are waiting for a human decision. On the right is the classifier's score, and where the runs came from.",
+      "url": "localhost:8765",
+      "seconds": 22,
+      "focus": [
+        {
+          "rect": [
+            0.17,
+            0.19,
+            0.38,
+            0.13
+          ],
+          "label": "The archive at a glance",
+          "cue": "one hundred and five"
+        },
+        {
+          "rect": [
+            0.17,
+            0.33,
+            0.32,
+            0.14
+          ],
+          "label": "49 signals await a decision",
+          "cue": "forty-nine"
+        },
+        {
+          "rect": [
+            0.59,
+            0.14,
+            0.32,
+            0.37
+          ],
+          "label": "Classifier score and run sources",
+          "cue": "On the right"
+        }
+      ]
+    },
+    {
+      "id": "overview-activity",
+      "image": "02_overview_throughput.png",
+      "eyebrow": "Overview",
+      "title": "Queue, activity and throughput",
+      "narration": "Further down, the overview lists the vetting queue, the most recent activity, and how long each pipeline stage takes. The period search and the refined analysis do most of the work. Below that, a chart shows runs and candidates per day, beside the breakdown of every completed run.",
+      "url": "localhost:8765",
+      "seconds": 18,
+      "focus": [
+        {
+          "rect": [
+            0.17,
+            0.0,
+            0.24,
+            0.3
+          ],
+          "label": "Vetting queue",
+          "cue": "the vetting queue"
+        },
+        {
+          "rect": [
+            0.42,
+            0.0,
+            0.24,
+            0.41
+          ],
+          "label": "Recent activity",
+          "cue": "the most recent activity"
+        },
+        {
+          "rect": [
+            0.67,
+            0.0,
+            0.24,
+            0.29
+          ],
+          "label": "Time per pipeline stage",
+          "cue": "how long each"
+        },
+        {
+          "rect": [
+            0.17,
+            0.47,
+            0.74,
+            0.37
+          ],
+          "label": "Throughput, last 14 days",
+          "cue": "a chart shows"
+        }
+      ]
+    },
+    {
+      "id": "new-analysis",
+      "image": "03_new.png",
+      "eyebrow": "New analysis",
+      "title": "Start with a star",
+      "narration": "Every analysis starts here. Name any TESS, Kepler or K2 target and the engine fetches its light curve from NASA's MAST archive. You can also upload your own data as a CSV file, or inject a simulated planet. The host star's properties are filled in from the catalogue, and the list on the right shows each step the pipeline will run.",
+      "url": "localhost:8765/new/",
+      "seconds": 21,
+      "focus": [
+        {
+          "rect": [
+            0.09,
+            0.275,
+            0.53,
+            0.13
+          ],
+          "label": "Name a TESS, Kepler or K2 target",
+          "cue": "Name any"
+        },
+        {
+          "rect": [
+            0.085,
+            0.215,
+            0.26,
+            0.05
+          ],
+          "label": "Or upload a CSV, or simulate",
+          "cue": "You can also",
+          "cursor": true
+        },
+        {
+          "rect": [
+            0.09,
+            0.5,
+            0.53,
+            0.14
+          ],
+          "label": "Host star, from the catalogue",
+          "cue": "The host"
+        },
+        {
+          "rect": [
+            0.66,
+            0.2,
+            0.25,
+            0.42
+          ],
+          "label": "Every step the pipeline runs",
+          "cue": "the list on the right"
+        }
+      ]
+    },
+    {
+      "id": "run-verdict",
+      "image": "04_run_verdict.png",
+      "eyebrow": "Run page",
+      "title": "The verdict, and the planet it measured",
+      "narration": "This is a finished run: the star WASP-12, from one sector of TESS data. The engine gives a ninety-four percent planet probability from twenty-one transits, and sends it to the vetting queue. On the right are the measurements: an orbit of just over one day, a dip of nearly one and a half percent, and a planet about twenty-three times the radius of Earth.",
+      "url": "localhost:8765/runs/bdfd40d9336f/",
+      "seconds": 23,
+      "focus": [
+        {
+          "rect": [
+            0.09,
+            0.185,
+            0.43,
+            0.135
+          ],
+          "label": "94.2% planet probability",
+          "cue": "The engine gives"
+        },
+        {
+          "rect": [
+            0.09,
+            0.335,
+            0.43,
+            0.1
+          ],
+          "label": "Planet, binary or noise",
+          "cue": "and sends it"
+        },
+        {
+          "rect": [
+            0.55,
+            0.19,
+            0.36,
+            0.125
+          ],
+          "label": "Period, depth and radius",
+          "cue": "On the right"
+        },
+        {
+          "rect": [
+            0.55,
+            0.32,
+            0.36,
+            0.47
+          ],
+          "label": "Every derived parameter",
+          "cue": "and a planet"
+        }
+      ]
+    },
+    {
+      "id": "run-diagnostics",
+      "image": "05_run_diagnostics.png",
+      "eyebrow": "Run page",
+      "title": "False-positive checks and the NASA cross-match",
+      "narration": "Next come the false-positive checks. Odd and even transits are compared, the engine looks for a second dip half an orbit later, and it checks whether the star's image shifts during transit. Here no flags are raised. The run is then matched against the NASA Exoplanet Archive, which confirms this is WASP-12 b at the same period. A reviewer can confirm or reject it, and download the archived data.",
+      "url": "localhost:8765/runs/bdfd40d9336f/",
+      "seconds": 25,
+      "focus": [
+        {
+          "rect": [
+            0.09,
+            0.03,
+            0.39,
+            0.52
+          ],
+          "label": "Every check, with its number",
+          "cue": "Odd and even"
+        },
+        {
+          "rect": [
+            0.09,
+            0.57,
+            0.39,
+            0.29
+          ],
+          "label": "Matches WASP-12 b in NASA's archive",
+          "cue": "The run is then"
+        },
+        {
+          "rect": [
+            0.52,
+            0.03,
+            0.39,
+            0.25
+          ],
+          "label": "Confirm or reject",
+          "cue": "A reviewer",
+          "cursor": true
+        },
+        {
+          "rect": [
+            0.52,
+            0.3,
+            0.39,
+            0.29
+          ],
+          "label": "Download the data",
+          "cue": "and download"
+        }
+      ]
+    },
+    {
+      "id": "run-visual",
+      "image": "06_run_visual.png",
+      "eyebrow": "Run page",
+      "title": "A visual model, drawn to scale",
+      "narration": "The visual model shows what the star and its companion are doing. On the left, the planet crosses the star's disc as seen from Earth, with the orbit from above, all drawn to scale and animated. On the right, the fitted transit is laid over the observed data, with the leftover scatter plotted underneath.",
+      "url": "localhost:8765/runs/bdfd40d9336f/",
+      "seconds": 19,
+      "focus": [
+        {
+          "rect": [
+            0.09,
+            0.08,
+            0.39,
+            0.41
+          ],
+          "label": "Sky view and orbit, animated",
+          "cue": "On the left"
+        },
+        {
+          "rect": [
+            0.52,
+            0.08,
+            0.39,
+            0.48
+          ],
+          "label": "The fit against the observations",
+          "cue": "On the right"
+        }
+      ],
+      "clip": "c_run_visual.mp4"
+    },
+    {
+      "id": "run-evidence",
+      "image": "07_run_evidence.png",
+      "eyebrow": "Run page",
+      "title": "The evidence, plot by plot",
+      "narration": "Three plots carry the evidence. Odd and even transits overlap, as they should for a planet. Half an orbit later there is no deep second eclipse. And the depth of each transit holds steady. Below, the companion is drawn beside Earth, Neptune and Jupiter, and its orbit beside Mercury's: forty-six times closer to its star than Earth is to the Sun.",
+      "url": "localhost:8765/runs/bdfd40d9336f/",
+      "seconds": 22,
+      "focus": [
+        {
+          "rect": [
+            0.09,
+            0.0,
+            0.26,
+            0.37
+          ],
+          "label": "Odd against even",
+          "cue": "Odd and even"
+        },
+        {
+          "rect": [
+            0.37,
+            0.0,
+            0.26,
+            0.37
+          ],
+          "label": "Half an orbit later",
+          "cue": "Half an orbit"
+        },
+        {
+          "rect": [
+            0.65,
+            0.0,
+            0.26,
+            0.37
+          ],
+          "label": "Depth of each transit",
+          "cue": "And the depth"
+        },
+        {
+          "rect": [
+            0.09,
+            0.39,
+            0.82,
+            0.24
+          ],
+          "label": "To scale with the Solar System",
+          "cue": "Below"
+        }
+      ]
+    },
+    {
+      "id": "run-classifier",
+      "image": "08_run_classifier.png",
+      "eyebrow": "Run page",
+      "title": "The classifier at work",
+      "narration": "This diagram is the classifier, drawn with this run's own data. The folded light curve goes in on the left, through two branches of a neural network: one sees the whole orbit, the other sees the transit up close. The network alone said fifty-nine percent planet. The vetting evidence then lifted the final answer to ninety-four. Below, every transit is stacked, next to a plot of what the network paid attention to.",
+      "url": "localhost:8765/runs/bdfd40d9336f/",
+      "seconds": 26,
+      "focus": [
+        {
+          "rect": [
+            0.09,
+            0.09,
+            0.2,
+            0.41
+          ],
+          "label": "In: the folded light curve",
+          "cue": "The folded light curve"
+        },
+        {
+          "rect": [
+            0.2,
+            0.09,
+            0.5,
+            0.41
+          ],
+          "label": "Two branches: whole orbit and close-up",
+          "cue": "through two branches"
+        },
+        {
+          "rect": [
+            0.69,
+            0.14,
+            0.22,
+            0.28
+          ],
+          "label": "Out: planet, binary or noise",
+          "cue": "The network alone"
+        },
+        {
+          "rect": [
+            0.09,
+            0.56,
+            0.82,
+            0.44
+          ],
+          "label": "Stacked transits and attention",
+          "cue": "Below"
+        }
+      ],
+      "clip": "c_run_classifier.mp4"
+    },
+    {
+      "id": "run-lightcurve",
+      "image": "09_run_lightcurve.png",
+      "eyebrow": "Run page",
+      "title": "Light curve, periodogram and folded transit",
+      "narration": "Here is the raw material: more than sixteen thousand brightness measurements across twenty-six days, with dashed lines marking each predicted transit. The periodogram below shows the search over fifteen thousand trial periods, with one clear peak. Beside it, all the transits are folded on top of each other, which is exactly what the classifier is given.",
+      "url": "localhost:8765/runs/bdfd40d9336f/",
+      "seconds": 21,
+      "focus": [
+        {
+          "rect": [
+            0.09,
+            0.03,
+            0.82,
+            0.42
+          ],
+          "label": "16,551 measurements over 26 days",
+          "cue": "more than sixteen"
+        },
+        {
+          "rect": [
+            0.09,
+            0.5,
+            0.4,
+            0.39
+          ],
+          "label": "One clear peak",
+          "cue": "The periodogram"
+        },
+        {
+          "rect": [
+            0.51,
+            0.5,
+            0.4,
+            0.39
+          ],
+          "label": "What the classifier is given",
+          "cue": "Beside it"
+        }
+      ]
+    },
+    {
+      "id": "run-audit",
+      "image": "11_run_audit.png",
+      "eyebrow": "Run page",
+      "title": "An audit trail for every stage",
+      "narration": "Every run ends with its audit trail. Each stage, from ingest to archive, writes a timestamped record, and every record is chained to the one before it with a cryptographic hash, so nothing can be changed quietly afterwards. You can verify the chain or download the log from here.",
+      "url": "localhost:8765/runs/bdfd40d9336f/",
+      "seconds": 19,
+      "focus": [
+        {
+          "rect": [
+            0.09,
+            0.14,
+            0.82,
+            0.7
+          ],
+          "label": "One hash-chained record per stage",
+          "cue": "Each stage"
+        },
+        {
+          "rect": [
+            0.75,
+            0.09,
+            0.17,
+            0.05
+          ],
+          "label": "Verify or download",
+          "cue": "You can verify",
+          "cursor": true
+        }
+      ]
+    },
+    {
+      "id": "targets",
+      "image": "12_targets.png",
+      "eyebrow": "Targets",
+      "title": "Every host star in the archive",
+      "narration": "The targets page lists every star the engine has looked at. You can filter by mission, or search by name or catalogue number. Each row shows the star's temperature, radius and mass, with the latest period, radius and verdict found for it.",
+      "url": "localhost:8765/targets/",
+      "seconds": 16,
+      "focus": [
+        {
+          "rect": [
+            0.09,
+            0.2,
+            0.82,
+            0.05
+          ],
+          "label": "Filter by mission, or search",
+          "cue": "You can filter",
+          "cursor": true
+        },
+        {
+          "rect": [
+            0.09,
+            0.25,
+            0.82,
+            0.62
+          ],
+          "label": "Each star, with its latest result",
+          "cue": "Each row"
+        }
+      ]
+    },
+    {
+      "id": "target",
+      "image": "13_target.png",
+      "eyebrow": "Targets",
+      "title": "One star, in context",
+      "narration": "Open a star to see it in context. WASP-12 is nearly fourteen hundred light-years from Earth. The light we see from it tonight left in the year six hundred and thirty-three, and Voyager 1 would need almost twenty-five million years to get there. Underneath are all the runs made on this star.",
+      "url": "localhost:8765/targets/720/",
+      "seconds": 19,
+      "focus": [
+        {
+          "rect": [
+            0.09,
+            0.18,
+            0.4,
+            0.15
+          ],
+          "label": "Latest result for this star",
+          "cue": "Open a star"
+        },
+        {
+          "rect": [
+            0.54,
+            0.46,
+            0.38,
+            0.15
+          ],
+          "label": "Distance, in human terms",
+          "cue": "nearly fourteen hundred"
+        },
+        {
+          "rect": [
+            0.09,
+            0.7,
+            0.82,
+            0.26
+          ],
+          "label": "Every run made on this star",
+          "cue": "Underneath"
+        }
+      ]
+    },
+    {
+      "id": "runs",
+      "image": "14_runs.png",
+      "eyebrow": "Runs",
+      "title": "The pipeline ledger",
+      "narration": "The runs page is the ledger of everything the pipeline has done. Filter by status or by verdict, search for a target or a run number, and download the full list as a spreadsheet. The median run here took thirty-eight seconds.",
+      "url": "localhost:8765/runs/",
+      "seconds": 15,
+      "focus": [
+        {
+          "rect": [
+            0.09,
+            0.19,
+            0.32,
+            0.1
+          ],
+          "label": "Active, completed, failed",
+          "cue": "The runs page"
+        },
+        {
+          "rect": [
+            0.09,
+            0.3,
+            0.82,
+            0.05
+          ],
+          "label": "Filter and search",
+          "cue": "Filter by status",
+          "cursor": true
+        },
+        {
+          "rect": [
+            0.78,
+            0.135,
+            0.14,
+            0.055
+          ],
+          "label": "Export the ledger",
+          "cue": "and download",
+          "cursor": true
+        }
+      ]
+    },
+    {
+      "id": "vetting",
+      "image": "15_vetting.png",
+      "eyebrow": "Vetting",
+      "title": "A human makes the final call",
+      "narration": "The engine never has the last word. Every strong signal lands in the vetting queue, where a person confirms it or marks it as a false positive. Forty-nine signals are waiting here. Confirmed candidates can then be exported for follow-up.",
+      "url": "localhost:8765/vetting/",
+      "seconds": 16,
+      "focus": [
+        {
+          "rect": [
+            0.09,
+            0.215,
+            0.33,
+            0.05
+          ],
+          "label": "49 awaiting a decision",
+          "cue": "Every strong signal"
+        },
+        {
+          "rect": [
+            0.76,
+            0.29,
+            0.155,
+            0.68
+          ],
+          "label": "Confirm, or mark a false positive",
+          "cue": "where a person",
+          "cursor": true
+        },
+        {
+          "rect": [
+            0.78,
+            0.135,
+            0.14,
+            0.055
+          ],
+          "label": "Export the candidates",
+          "cue": "Confirmed candidates",
+          "cursor": true
+        }
+      ]
+    },
+    {
+      "id": "atlas",
+      "image": "16_atlas.png",
+      "eyebrow": "Atlas",
+      "title": "Detections among the known planets",
+      "narration": "The atlas places the engine's detections among the planets we already know. The faint points are nearly five thousand confirmed transiting planets, plotted by orbital period and size. The engine's own candidates, eclipsing binaries and signals needing review are drawn on top, with a guide to reading the diagram on the right.",
+      "url": "localhost:8765/atlas/",
+      "seconds": 20,
+      "focus": [
+        {
+          "rect": [
+            0.09,
+            0.2,
+            0.53,
+            0.62
+          ],
+          "label": "4,720 confirmed planets, and ours",
+          "cue": "The faint points"
+        },
+        {
+          "rect": [
+            0.66,
+            0.2,
+            0.25,
+            0.28
+          ],
+          "label": "How to read it",
+          "cue": "with a guide"
+        }
+      ]
+    },
+    {
+      "id": "map-solar",
+      "image": "17_map_solar.png",
+      "eyebrow": "Map",
+      "title": "The map begins at home",
+      "narration": "The map shows where the known planets really are. It opens on our own Solar System, drawn to scale, with the dashed line tracing Voyager 1 on its way out. From here you can zoom from Earth's orbit all the way to the whole Galaxy, or jump straight to a place using the shortcuts above the map.",
+      "url": "localhost:8765/map/",
+      "seconds": 19,
+      "focus": [
+        {
+          "rect": [
+            0.09,
+            0.11,
+            0.59,
+            0.68
+          ],
+          "label": "The Solar System, to scale",
+          "cue": "It opens on",
+          "zoom": 1.12,
+          "hold": 5
+        },
+        {
+          "rect": [
+            0.085,
+            0.015,
+            0.6,
+            0.09
+          ],
+          "label": "Three views, six shortcuts",
+          "cue": "or jump straight",
+          "cursor": true
+        }
+      ],
+      "clip": "c_map_zoomout.mp4",
+      "clipCue": "From here you can"
+    },
+    {
+      "id": "map-neighbourhood",
+      "image": "18_map_neighbourhood.png",
+      "eyebrow": "Map",
+      "title": "The neighbourhood, and how far it really is",
+      "narration": "Zoom out and the nearest stars with planets appear. Select one, here TRAPPIST-1, and the panel tells you how far away it is. Forty light-years. The light you would see tonight left in nineteen eighty-five, and Voyager 1 would take seven hundred thousand years to arrive. Its seven known planets are listed underneath.",
+      "url": "localhost:8765/map/",
+      "seconds": 21,
+      "focus": [
+        {
+          "rect": [
+            0.7,
+            0.11,
+            0.21,
+            0.18
+          ],
+          "label": "40.5 light-years away",
+          "cue": "Forty light-years"
+        },
+        {
+          "rect": [
+            0.7,
+            0.31,
+            0.21,
+            0.2
+          ],
+          "label": "How long the journey takes",
+          "cue": "and Voyager"
+        },
+        {
+          "rect": [
+            0.7,
+            0.69,
+            0.21,
+            0.31
+          ],
+          "label": "Seven known planets",
+          "cue": "Its seven"
+        }
+      ]
+    },
+    {
+      "id": "map-trappist",
+      "image": "19_map_trappist.png",
+      "eyebrow": "Map",
+      "title": "Seven orbits and a liquid-water zone",
+      "narration": "Zoom all the way in on TRAPPIST-1 and its seven orbits appear, drawn to scale, with the shaded band where liquid water could exist. The whole system is tiny. Light crosses this view in under two minutes.",
+      "url": "localhost:8765/map/",
+      "seconds": 15,
+      "focus": [
+        {
+          "rect": [
+            0.09,
+            0.11,
+            0.59,
+            0.68
+          ],
+          "label": "Seven orbits and the liquid-water zone",
+          "cue": "its seven orbits",
+          "zoom": 1.14
+        }
+      ]
+    },
+    {
+      "id": "map-galaxy",
+      "image": "20_map_galaxy.png",
+      "eyebrow": "Map",
+      "title": "Every known planetary system",
+      "narration": "Pull back to the whole Galaxy, and every one of the four thousand eight hundred known planetary systems fits in a small patch around the Sun. The spike is the Kepler telescope's field of view. The streak on the right is a line of discoveries toward the centre of the Galaxy, twenty-six thousand light-years away.",
+      "url": "localhost:8765/map/",
+      "seconds": 20,
+      "focus": [
+        {
+          "rect": [
+            0.2,
+            0.3,
+            0.38,
+            0.3
+          ],
+          "label": "Every known planetary system",
+          "cue": "The spike"
+        }
+      ],
+      "clip": "c_map_galaxy.mp4"
+    },
+    {
+      "id": "map-sky",
+      "image": "21_map_sky.png",
+      "eyebrow": "Map",
+      "title": "The sky as seen from Earth",
+      "narration": "The third view is the sky as seen from Earth. Kepler's field stands out as a dense patch, and stars analysed by this engine are marked in red. Filters underneath narrow the map by how each planet was discovered.",
+      "url": "localhost:8765/map/",
+      "seconds": 15,
+      "focus": [
+        {
+          "rect": [
+            0.085,
+            0.015,
+            0.31,
+            0.05
+          ],
+          "label": "Sky from Earth",
+          "cue": "The third view",
+          "cursor": true
+        },
+        {
+          "rect": [
+            0.12,
+            0.22,
+            0.24,
+            0.2
+          ],
+          "label": "Kepler's field of view",
+          "cue": "Kepler's field"
+        },
+        {
+          "rect": [
+            0.09,
+            0.87,
+            0.59,
+            0.08
+          ],
+          "label": "Filter by discovery method",
+          "cue": "Filters underneath",
+          "cursor": true
+        }
+      ]
+    },
+    {
+      "id": "benchmark",
+      "image": "22_benchmark.png",
+      "eyebrow": "Benchmark",
+      "title": "Scored on real stars it never saw",
+      "narration": "How good is it? The benchmark page answers with real stars and known answers. Out of nine hundred and ninety labelled Kepler stars, one hundred and eighty-eight were held back and never used for training. On those, the classifier separates planets from everything else with a score of zero point nine eight two, where one is perfect.",
+      "url": "localhost:8765/benchmark/",
+      "seconds": 22,
+      "focus": [
+        {
+          "rect": [
+            0.09,
+            0.27,
+            0.82,
+            0.11
+          ],
+          "label": "990 real stars, 188 held out",
+          "cue": "Out of nine"
+        },
+        {
+          "rect": [
+            0.09,
+            0.55,
+            0.44,
+            0.15
+          ],
+          "label": "Planet versus everything else",
+          "cue": "On those"
+        },
+        {
+          "rect": [
+            0.55,
+            0.56,
+            0.36,
+            0.43
+          ],
+          "label": "One curve per class",
+          "cue": "where one is"
+        }
+      ]
+    },
+    {
+      "id": "benchmark-injection",
+      "image": "23_benchmark_injection.png",
+      "eyebrow": "Benchmark",
+      "title": "Injection and recovery",
+      "narration": "Injection and recovery asks a different question: if a planet were there, would the engine find it? Artificial transits are added to quiet real stars and run blind. Strong signals are recovered ninety-eight percent of the time, signals right at the detection threshold half the time, and the faintest almost never, which is how it should be.",
+      "url": "localhost:8765/benchmark/",
+      "seconds": 22,
+      "focus": [
+        {
+          "rect": [
+            0.09,
+            0.08,
+            0.42,
+            0.38
+          ],
+          "label": "Recovery against signal strength",
+          "cue": "Artificial transits"
+        },
+        {
+          "rect": [
+            0.54,
+            0.09,
+            0.37,
+            0.12
+          ],
+          "label": "98%, 50% and 4%",
+          "cue": "Strong signals"
+        },
+        {
+          "rect": [
+            0.55,
+            0.22,
+            0.36,
+            0.44
+          ],
+          "label": "Every injection counted",
+          "cue": "and the faintest"
+        }
+      ]
+    },
+    {
+      "id": "benchmark-blind",
+      "image": "24_benchmark_blind.png",
+      "eyebrow": "Benchmark",
+      "title": "Blind, end to end",
+      "narration": "The hardest test is the blind run. The pipeline gets only the photometry of ninety held-out stars and must find the period itself. It recovered fifty-five of sixty periods exactly, called twenty-nine of thirty real planets planets, and let only two false positives into the vetting queue. Every star is listed below with its result.",
+      "url": "localhost:8765/benchmark/",
+      "seconds": 22,
+      "focus": [
+        {
+          "rect": [
+            0.09,
+            0.08,
+            0.82,
+            0.12
+          ],
+          "label": "90 stars, period unknown",
+          "cue": "The pipeline gets"
+        },
+        {
+          "rect": [
+            0.09,
+            0.21,
+            0.4,
+            0.45
+          ],
+          "label": "Measured against catalogued period",
+          "cue": "It recovered"
+        },
+        {
+          "rect": [
+            0.51,
+            0.59,
+            0.19,
+            0.21
+          ],
+          "label": "Who was called what",
+          "cue": "called twenty-nine"
+        },
+        {
+          "rect": [
+            0.09,
+            0.81,
+            0.82,
+            0.19
+          ],
+          "label": "Every star, with its result",
+          "cue": "Every star"
+        }
+      ]
+    },
+    {
+      "id": "validation",
+      "image": "25_validation.png",
+      "eyebrow": "Validation",
+      "title": "Checked against its acceptance criteria",
+      "narration": "The validation page checks the system against its written acceptance criteria. Period, depth, radius, classification and log integrity all pass. Three extended checks run alongside, and the page is honest about the one that misses: eleven of twelve golden-target assertions hold.",
+      "url": "localhost:8765/validation/",
+      "seconds": 18,
+      "focus": [
+        {
+          "rect": [
+            0.09,
+            0.185,
+            0.5,
+            0.11
+          ],
+          "label": "5 of 5 criteria passed",
+          "cue": "The validation page"
+        },
+        {
+          "rect": [
+            0.09,
+            0.33,
+            0.82,
+            0.36
+          ],
+          "label": "Measured value against tolerance",
+          "cue": "Period, depth"
+        },
+        {
+          "rect": [
+            0.09,
+            0.69,
+            0.82,
+            0.25
+          ],
+          "label": "Extended checks, one honest miss",
+          "cue": "Three extended"
+        }
+      ]
+    },
+    {
+      "id": "automation",
+      "image": "26_automation.png",
+      "eyebrow": "Automation",
+      "title": "New data in, better model out",
+      "narration": "Automation lets the engine keep itself up to date. Each cycle pulls the newest TESS objects of interest, downloads more labelled Kepler stars, and retrains once enough have arrived. A new model replaces the current one only if it scores no worse on the held-out stars. It is off by default, and every training run is listed here.",
+      "url": "localhost:8765/automation/",
+      "seconds": 21,
+      "focus": [
+        {
+          "rect": [
+            0.09,
+            0.18,
+            0.42,
+            0.11
+          ],
+          "label": "Off until you start it",
+          "cue": "Automation lets"
+        },
+        {
+          "rect": [
+            0.09,
+            0.32,
+            0.42,
+            0.21
+          ],
+          "label": "What each cycle does",
+          "cue": "Each cycle"
+        },
+        {
+          "rect": [
+            0.09,
+            0.66,
+            0.82,
+            0.34
+          ],
+          "label": "Champion and challenger",
+          "cue": "A new model"
+        },
+        {
+          "rect": [
+            0.55,
+            0.19,
+            0.36,
+            0.41
+          ],
+          "label": "The schedule",
+          "cue": "It is off"
+        }
+      ]
+    },
+    {
+      "id": "audit-log",
+      "image": "27_logs.png",
+      "eyebrow": "Audit log",
+      "title": "Every stage of every run",
+      "narration": "The audit log gathers the records from every run in one place. Filter by level or by pipeline stage, search the messages, and download everything as a single file. Warnings stand out, like the diagnostic flag raised in this run.",
+      "url": "localhost:8765/logs/",
+      "seconds": 15,
+      "focus": [
+        {
+          "rect": [
+            0.09,
+            0.2,
+            0.82,
+            0.05
+          ],
+          "label": "Filter by level, stage or text",
+          "cue": "Filter by level",
+          "cursor": true
+        },
+        {
+          "rect": [
+            0.09,
+            0.525,
+            0.82,
+            0.05
+          ],
+          "label": "A warning, from a diagnostic flag",
+          "cue": "Warnings stand out"
+        }
+      ]
+    },
+    {
+      "id": "calculator",
+      "image": "28_calculator.png",
+      "eyebrow": "Calculator",
+      "title": "Work the physics by hand",
+      "narration": "The calculator is an interactive version of the physics. Pick a preset such as WASP-12 b or TRAPPIST-1 e, or move the sliders for the star, the period and the transit depth. The planet's radius, orbit, transit duration and temperature update as you go, and the same scale drawing of the system follows along.",
+      "url": "localhost:8765/calculator/",
+      "seconds": 20,
+      "focus": [
+        {
+          "rect": [
+            0.09,
+            0.2,
+            0.31,
+            0.06
+          ],
+          "label": "Four presets",
+          "cue": "Pick a preset",
+          "cursor": true
+        },
+        {
+          "rect": [
+            0.44,
+            0.21,
+            0.47,
+            0.21
+          ],
+          "label": "Results update as you go",
+          "cue": "The planet's radius"
+        },
+        {
+          "rect": [
+            0.44,
+            0.45,
+            0.47,
+            0.49
+          ],
+          "label": "The system, drawn to scale",
+          "cue": "and the same"
+        }
+      ],
+      "clip": "c_calculator.mp4",
+      "clipCue": "Pick a preset"
+    },
+    {
+      "id": "settings",
+      "image": "29_settings.png",
+      "eyebrow": "Settings",
+      "title": "Pipeline defaults in one place",
+      "narration": "Settings holds the defaults applied to every new analysis: the outlier threshold, the detrending window, the range of periods to search, and the confidence a signal needs to reach the vetting queue. The acceptance tolerances underneath are fixed, and the storage in use is shown beside them.",
+      "url": "localhost:8765/settings/",
+      "seconds": 19,
+      "focus": [
+        {
+          "rect": [
+            0.09,
+            0.19,
+            0.82,
+            0.37
+          ],
+          "label": "Defaults for every new analysis",
+          "cue": "the outlier threshold"
+        },
+        {
+          "rect": [
+            0.41,
+            0.44,
+            0.18,
+            0.13
+          ],
+          "label": "Confidence needed for the queue",
+          "cue": "and the confidence"
+        },
+        {
+          "rect": [
+            0.09,
+            0.67,
+            0.82,
+            0.28
+          ],
+          "label": "Fixed tolerances, and storage",
+          "cue": "The acceptance"
+        }
+      ],
+      "redact": [
+        [
+          0.655,
+          0.868,
+          0.26,
+          0.035
+        ]
+      ]
+    },
+    {
+      "id": "method",
+      "image": "30_method.png",
+      "eyebrow": "Method",
+      "title": "The mathematics, written out",
+      "narration": "Finally, the method page writes out the mathematics of each stage, from normalisation to the physical parameters, and defines every verdict and every diagnostic flag the engine can raise. Nothing in the pipeline is a black box.",
+      "url": "localhost:8765/method/",
+      "seconds": 15,
+      "focus": [
+        {
+          "rect": [
+            0.09,
+            0.2,
+            0.39,
+            0.66
+          ],
+          "label": "Each stage, with its formula",
+          "cue": "writes out"
+        },
+        {
+          "rect": [
+            0.52,
+            0.2,
+            0.39,
+            0.42
+          ],
+          "label": "Every verdict, defined",
+          "cue": "defines every verdict"
+        },
+        {
+          "rect": [
+            0.52,
+            0.64,
+            0.39,
+            0.36
+          ],
+          "label": "Every diagnostic flag",
+          "cue": "every diagnostic flag"
+        }
+      ]
+    },
+    {
+      "id": "outro",
+      "image": null,
+      "eyebrow": "Finds planets in starlight",
+      "title": "From starlight to a vetted candidate",
+      "narration": "That is the Chronos Transit Engine: from raw starlight, to a measured planet, to a decision you can audit, and a place on the map. Thank you for watching.",
+      "seconds": 12
+    }
+  ],
+  "video": {
+    "logo": "tile",
+    "transition": "slide",
+    "captions": true,
+    "motion": true
+  }
+}

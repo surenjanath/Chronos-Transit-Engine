@@ -1,0 +1,337 @@
+{
+  "intro": {
+    "kicker": "What the system is",
+    "body": "Chronos Transit Engine finds planets in starlight. It takes a star's brightness over time from NASA's TESS, Kepler or K2 missions, searches it for the small, regular dips a planet makes when it crosses its star, measures the planet, and decides whether the dip is a planet, an eclipsing binary star, or noise. It is one Django project: server-rendered pages, the science pipeline, and the archive. This guide walks through every page in the order you would use them.",
+    "bullets": [
+      "<b>Ingest.</b> Any TESS, Kepler or K2 target from MAST by name, a CSV upload, or a simulated star.",
+      "<b>Clean.</b> Median normalisation, a rolling sigma clip, and a Savitzky-Golay detrend with the transit masked.",
+      "<b>Search.</b> Box Least Squares over 0.5 to 30 days on all CPU cores, with period-alias correction.",
+      "<b>Measure.</b> Period, depth, duration, planet radius (with a limb-darkened fit and 1σ errors), orbit size and temperature.",
+      "<b>Vet.</b> Odd/even depth, a secondary eclipse at any orbital phase, centroid motion, V-shape, radius and duration.",
+      "<b>Classify.</b> A five-network ensemble of dual-branch 1D-CNNs, plus a second stage that weighs the vetting evidence.",
+      "<b>Look further.</b> Each signal and the star's own variability are removed, then the remainder is searched again for more planets.",
+      "<b>Check itself.</b> A blind benchmark on held-out real stars, injection and recovery, golden targets and written acceptance criteria.",
+      "<b>Locate.</b> A zoomable map of about 4,800 real planetary systems, with distances and travel times from Earth.",
+      "<b>Record.</b> A hash-chained JSONL audit log per run, Parquet archives, and SQLite or PostgreSQL storage.",
+      "<b>Run it.</b> <code>./run.sh</code> starts the engine on http://127.0.0.1:8765. The first start builds a virtualenv, applies migrations and trains the classifier if no checkpoint exists."
+    ]
+  },
+  "overview": {
+    "kicker": "Overview · home page",
+    "body": "The overview is the first page you see and the fastest way to read the state of the archive. The left side counts what the pipeline has done; the right side reports how the classifier is performing and where the runs came from.",
+    "bullets": [
+      "<b>Headline figures.</b> Targets, completed runs, planet candidates sent to vetting, and false positives flagged before export.",
+      "<b>Candidate yield.</b> The share of runs that produced a planet candidate (32% here: 37 of 117), and the number of signals awaiting a human decision.",
+      "<b>Highest planet probability.</b> The strongest signals in the archive; each row opens its run.",
+      "<b>Extended report.</b> The vetting queue size, runs in motion, median run time, the classifier's AUC against its 0.96 floor, and the run sources (blind benchmark, synthetic, MAST archive).",
+      "<b>Always on screen.</b> The navigation bar, the Idle / running status, Export, the light/dark Theme switch, and the dock at the bottom with shortcuts to New analysis, Vetting, Verify, Log and the candidates CSV."
+    ]
+  },
+  "overview-activity": {
+    "kicker": "Overview · further down",
+    "body": "Scrolling the overview shows the working detail behind the headline figures: what is queued, what just happened, where the time goes, and how output has moved over the last two weeks.",
+    "bullets": [
+      "<b>Vetting queue.</b> The signals waiting for review, each tagged Vetting queue or Manual review.",
+      "<b>Recent activity.</b> Runs starting and being classified, newest first.",
+      "<b>Stage timing.</b> Average time per pipeline stage. The BLS period search and the refined analysis dominate; the other stages take fractions of a second.",
+      "<b>Throughput.</b> Completed runs and planet candidates per day over the last 14 days.",
+      "<b>Disposition of completed runs.</b> Planet candidates, needs review, eclipsing binaries and noise / no signal, plus the operator decisions made so far."
+    ]
+  },
+  "new-analysis": {
+    "kicker": "New analysis · ingest a light curve",
+    "body": "Every run starts on this page. Choose where the photometry comes from, describe the host star if you want to override the catalogue, and start the full pipeline.",
+    "bullets": [
+      "<b>MAST archive.</b> Enter a TIC or KIC id or a name such as WASP-12, pick the mission, and optionally Search MAST to choose a specific sector or quarter. Separate several targets with commas to queue a batch.",
+      "<b>Synthetic injection.</b> Simulate a star with a planet or binary of your choosing, useful for testing the pipeline.",
+      "<b>CSV upload.</b> Run the pipeline on your own light curve.",
+      "<b>Host star.</b> Effective temperature, radius and mass. Left on auto, MAST targets use the TESS Input Catalog; otherwise a solar-type star is assumed.",
+      "<b>Pipeline overrides.</b> Per-run changes to the saved defaults (sigma-clip threshold, detrend window, period range).",
+      "<b>While it runs.</b> The run page reports progress in plain words, shows the eleven stages and the time elapsed, and keeps a running list of what has been found so far. MAST targets download on first use, then run in 10 to 30 seconds."
+    ]
+  },
+  "run-verdict": {
+    "kicker": "Run page · the answer",
+    "body": "A finished run opens on its verdict. This example is WASP-12 from TESS sector 20: a 94.2% planet probability, a signal-to-noise of 328 from 21 transits, and the disposition Vetting queue, meaning a high-confidence transit that is ready for human review.",
+    "bullets": [
+      "<b>Three probabilities.</b> Planet candidate, eclipsing binary, and stellar or instrument noise. The line underneath shows what the CNN said alone before the vetting evidence was weighed.",
+      "<b>Derived parameters.</b> Period 1.09141 d, depth 14,710 ppm, radius 23.14 R⊕, with the radius ratio, semi-major axis, theoretical and fitted transit duration, and equilibrium temperature.",
+      "<b>Limb-darkened fit.</b> A second radius (22.16 ± 0.12 R⊕) with 1σ errors, plus fitted impact parameter, a/R★ and stellar density. The simple depth formula overestimates the radius by a few percent because limb darkening deepens mid-transit, so both are shown.",
+      "<b>Actions.</b> Back to all runs, open the target, see the star on the map, re-run, or delete."
+    ]
+  },
+  "run-diagnostics": {
+    "kicker": "Run page · is it really a planet?",
+    "body": "Below the verdict, the engine lists every false-positive check it made and compares its result with NASA's catalogue. Human vetting and the archived data products sit alongside.",
+    "bullets": [
+      "<b>False-positive diagnostics.</b> Odd/even depth, secondary eclipse at phase 0.5, in-transit centroid shift, transit shape, fitted against theoretical duration, out-of-transit scatter, shape-derived geometry and stellar density.",
+      "<b>A real occultation is not held against a planet.</b> A second dip counts against a planet only when it is too bright for a planet to produce, so a hot Jupiter like WASP-12 b raises no flag.",
+      "<b>NASA Exoplanet Archive cross-match.</b> The run is matched against confirmed planets, TOIs and KOIs. Here it matches WASP-12 b at the same period, with the radius within about 5% of the catalogued value.",
+      "<b>Human vetting.</b> Add an optional reviewer note (written to the audit trail), then Confirm candidate or Mark false positive.",
+      "<b>Archive.</b> Download the light curve, periodogram, folded curve and CNN tensors as Parquet, and the audit log as JSONL."
+    ]
+  },
+  "run-visual": {
+    "kicker": "Run page · visual model",
+    "body": "The visual model turns the fitted numbers into a picture of what the star and its companion are doing, and shows how well that picture explains the data.",
+    "bullets": [
+      "<b>Sky view, to scale.</b> The companion crossing the stellar disc at the fitted radius ratio and impact parameter.",
+      "<b>Orbit from above.</b> The orbit at the fitted a/R★, with the direction to the observer.",
+      "<b>Animated light curve.</b> The brightness changes in step with the animation. Click to pause; move the pointer to scrub.",
+      "<b>Expected against observed.</b> The binned observations, the limb-darkened fit, and the prediction for the catalogued star, with the residual scatter plotted below."
+    ]
+  },
+  "run-evidence": {
+    "kicker": "Run page · the evidence",
+    "body": "Three small plots carry the evidence a human vetter looks for, each with a one-line reading guide. Below them the system is put beside our own.",
+    "bullets": [
+      "<b>Odd against even transits.</b> A planet gives identical curves. Different depths mean an eclipsing binary at twice the period.",
+      "<b>Half an orbit later.</b> A dip at phase 0.5 is a secondary eclipse: the companion shines by its own light.",
+      "<b>Depth of each transit.</b> The dashed line is the fitted depth. Scatter beyond the noise points to blends or spots.",
+      "<b>To scale with the Solar System.</b> The companion drawn beside Earth, Neptune and Jupiter, and its orbit beside Mercury's and Earth's. WASP-12 b orbits 46 times closer than Earth does; light from its star reaches it in 11 seconds."
+    ]
+  },
+  "run-classifier": {
+    "kicker": "Run page · the classifier",
+    "body": "The classifier diagram is drawn with this run's own folded light curve as input and its own probabilities as output. While a run is in progress the same diagram sits idle until its stage arrives, then animates.",
+    "bullets": [
+      "<b>Two branches.</b> A global branch sees the whole orbit in 201 bins; a local branch sees the transit in 61 bins, in four views: all transits, odd, even, and the window half an orbit later.",
+      "<b>Ensemble.</b> Five networks are trained, each holding out a different fifth of the real training stars.",
+      "<b>Second stage.</b> A small ensemble combines the CNN probabilities with the vetting evidence. For WASP-12 b the CNN alone gave 58.6% planet; the vetting evidence moved the final answer to 94.2%. The final answer is what every run reports.",
+      "<b>Every transit, stacked.</b> One row per observed transit, so a single odd event stands out.",
+      "<b>What the classifier looked at.</b> Occlusion saliency for the local and global views: which parts of the curve moved the answer."
+    ]
+  },
+  "run-lightcurve": {
+    "kicker": "Run page · the data",
+    "body": "The plots section shows the photometry the run was built from and the search that found the period. All plots can be dragged to zoom.",
+    "bullets": [
+      "<b>Light curve.</b> 16,551 cadences over 26.3 days at 2-minute cadence. Switch between Normalized + trend and Detrended. Dashed lines mark predicted transit times from the fitted ephemeris.",
+      "<b>BLS periodogram.</b> Signal residue over 15,192 trial periods, with the best period labelled at the peak.",
+      "<b>Phase-folded transit.</b> Every transit folded onto one curve, shown as the exact tensors the CNN receives: Local (61 bins) or Global (201 bins).",
+      "<b>Period aliases.</b> The best peak and its simple multiples are re-examined on a fine grid, and the period is doubled or tripled when only every second or third epoch shows a transit."
+    ]
+  },
+  "run-audit": {
+    "kicker": "Run page · audit trail",
+    "body": "Every run closes with its audit trail: one schema-validated JSONL record per stage, each chained to the previous one with a SHA-256 hash.",
+    "bullets": [
+      "<b>Stages recorded.</b> Ingest, normalisation, outlier rejection, detrending, BLS search, phase folding, physics derivation, vetting diagnostics, CNN inference, refined analysis, archive cross-match and archive.",
+      "<b>Verify integrity.</b> Recomputes the hash chain and reports whether any record has been altered.",
+      "<b>Download JSONL.</b> The raw log for this run.",
+      "<b>Reviewer decisions</b> and notes made on the vetting panel are written to the same trail."
+    ]
+  },
+  "targets": {
+    "kicker": "Targets · host stars",
+    "body": "The targets page lists every host star in the archive, with its stellar parameters and the latest result found for it.",
+    "bullets": [
+      "<b>Filter by source.</b> All, TESS, Kepler, K2, Synthetic or Upload.",
+      "<b>Search</b> by name or TIC id.",
+      "<b>Columns.</b> Mission, effective temperature, stellar radius and mass, V magnitude, number of runs, latest period, latest radius and latest disposition.",
+      "<b>Open a row</b> to see the star's own page."
+    ]
+  },
+  "target": {
+    "kicker": "Targets · one star",
+    "body": "A target page puts one star in context: what the engine last measured on it, what the catalogue says about the star, and how far away it is in human terms.",
+    "bullets": [
+      "<b>Latest result.</b> Period, depth, radius, planet probability and disposition.",
+      "<b>The star.</b> Temperature, radius, mass, V magnitude, sky position and when it was first ingested.",
+      "<b>Distance.</b> WASP-12 is 1,393.5 light-years from Earth; the light seen tonight left in the year 633, and Voyager 1 would arrive in 24.6 million years.",
+      "<b>Runs for this target.</b> Every analysis of this star, with a link to its place on the map."
+    ]
+  },
+  "runs": {
+    "kicker": "Runs · pipeline ledger",
+    "body": "The runs page is the complete ledger of the pipeline's work: every run, its measurements, its status and its verdict.",
+    "bullets": [
+      "<b>Counters.</b> Active now, completed, failed, and median runtime.",
+      "<b>Filter.</b> All, Completed, Running or Failed; narrow further by disposition, or search by target or run id.",
+      "<b>Columns.</b> Period, depth, radius, planet probability, number of diagnostic flags, status, disposition and vetting decision.",
+      "<b>Download CSV</b> exports the ledger; <b>+ New analysis</b> starts another run."
+    ]
+  },
+  "vetting": {
+    "kicker": "Vetting · human review",
+    "body": "The engine never has the last word. Signals with a planet probability above the queue threshold and no high-severity flag arrive here for a person to decide.",
+    "bullets": [
+      "<b>Three tabs.</b> Awaiting decision, Confirmed and False positives.",
+      "<b>Each row</b> shows the period, depth, radius, planet probability, flag count and disposition (Vetting queue or Manual review).",
+      "<b>Confirm</b> or <b>False positive</b> records the decision against the run and in its audit trail.",
+      "<b>Export candidates CSV</b> produces the list for citizen-science or follow-up use.",
+      "The vetting-queue triangle beside every page shows the current queue size and links here."
+    ]
+  },
+  "atlas": {
+    "kicker": "Atlas · the known population",
+    "body": "The atlas plots the engine's detections against the population of planets already known, by orbital period and radius, both on logarithmic axes.",
+    "bullets": [
+      "<b>Faint points.</b> The 4,720 confirmed transiting planets in the NASA Exoplanet Archive.",
+      "<b>Engine results.</b> Planet candidates, eclipsing binaries and signals needing review are drawn on top.",
+      "<b>Reading the diagram.</b> Upper left: hot Jupiters. Middle band: sub-Neptunes and super-Earths, the most common planets known. Above 25 R⊕: too large for a planet. The gap near 1.8 R⊕ is the radius valley between rocky and gas-rich planets.",
+      "<b>Detections.</b> A table of the transit-like signals, smallest first, sits below the diagram."
+    ]
+  },
+  "map-solar": {
+    "kicker": "Map · you are here",
+    "body": "The map is a pannable, zoomable picture of real space. Every host star is placed from its measured sky position and distance in the NASA Exoplanet Archive; nothing is invented. It opens on the Solar System, to scale.",
+    "bullets": [
+      "<b>Three viewpoints.</b> Galaxy from above, Galaxy edge-on, and Sky from Earth.",
+      "<b>Go to.</b> Earth's orbit, Solar System, Voyager 1, Nearest stars, Kepler's field and Whole Galaxy.",
+      "<b>Find a star or planet</b> by name.",
+      "<b>The readout</b> under the map says how wide the view is, how long light takes to cross it, and how long Voyager 1 would need.",
+      "<b>Refresh from archive</b> updates the catalogue copy (6,417 planets in 4,814 systems here)."
+    ]
+  },
+  "map-neighbourhood": {
+    "kicker": "Map · the nearest stars",
+    "body": "Select any star and the panel explains its distance in terms a person can picture. TRAPPIST-1 is shown here among the stars within a few tens of light-years.",
+    "bullets": [
+      "<b>Distance from Earth.</b> 40.5 light-years; the light seen tonight left in 1985.",
+      "<b>Travel times.</b> Voyager 1: 717,000 years. Parker Solar Probe at its fastest: 63,300 years. An airliner: 48.6 million years.",
+      "<b>The star.</b> Spectral type, temperature, radius, brightness, sky position and discovery method.",
+      "<b>Its planets.</b> All seven, with radius, period and orbit size.",
+      "<b>Travel there from Earth</b> animates the whole way out."
+    ]
+  },
+  "map-trappist": {
+    "kicker": "Map · a system up close",
+    "body": "Zoom all the way in and a star's orbits are drawn to scale with its liquid-water zone shaded. TRAPPIST-1's seven orbits would fit well inside Mercury's.",
+    "bullets": [
+      "<b>Scale.</b> This view is 0.224 AU across; light crosses it in 112 seconds.",
+      "<b>Liquid-water zone.</b> The band where a planet receives enough starlight for liquid water.",
+      "<b>Honest limits.</b> Orbits are drawn to scale in size but face-on, and planets are not placed along them, because orientation and present position are not in the catalogue."
+    ]
+  },
+  "map-galaxy": {
+    "kicker": "Map · the whole Galaxy",
+    "body": "Zoomed out to 170,000 light-years, all 4,814 known planetary systems occupy a small patch around the Sun. The shape of that patch is the shape of where we have looked.",
+    "bullets": [
+      "<b>The spike</b> is the Kepler telescope's field of view.",
+      "<b>The streak</b> towards the Galactic centre (26,670 light-years away) is microlensing discoveries.",
+      "<b>The Sun's path</b> around the Galaxy is drawn too; one lap takes about 230 million years.",
+      "Stars analysed by this engine are highlighted, and target and run pages link to their place here."
+    ]
+  },
+  "map-sky": {
+    "kicker": "Map · the sky from Earth",
+    "body": "The third viewpoint lays the same systems out on the sky as seen from Earth, 360 degrees wide.",
+    "bullets": [
+      "<b>Kepler's field of view</b> appears as a dense patch; the Galactic centre is another.",
+      "<b>Red points</b> are stars analysed by this engine.",
+      "<b>Show filters.</b> All, Transit, Radial velocity, Microlensing, Imaging or Other methods; further filters select small planets, temperate planets and naked-eye stars.",
+      "<b>The readout</b> compares the view with the width of the full Moon."
+    ]
+  },
+  "benchmark": {
+    "kicker": "Benchmark · real stars with known answers",
+    "body": "The benchmark page scores the classifier on real Kepler stars labelled by the Kepler Science Office: planet candidates, astrophysical false positives and non-transiting phenomena. A fifth of the stars are held out and never used for training.",
+    "bullets": [
+      "<b>The data.</b> 990 real stars, 330 per class; 802 used for training, 188 held out. A star's split is fixed by its KIC number.",
+      "<b>CNN ensemble alone.</b> Planet-versus-rest AUC 0.982, PR-AUC 0.966, 90.4% three-class accuracy.",
+      "<b>With the second stage</b> (what every run reports): AUC 0.985, PR-AUC 0.973, 91.0% accurate.",
+      "<b>Targets.</b> AUC at least 0.96 and PR-AUC at least 0.88.",
+      "<b>ROC curves</b> and a confusion matrix show where the mistakes fall."
+    ]
+  },
+  "benchmark-injection": {
+    "kicker": "Benchmark · injection and recovery",
+    "body": "Injection and recovery measures completeness: limb-darkened transits of known period and depth are injected into quiet real Kepler stars and run blind through the whole pipeline.",
+    "bullets": [
+      "<b>From S/N 10:</b> 98% recovered.",
+      "<b>At the 7.1 detection threshold:</b> 50%.",
+      "<b>Below S/N 4.5:</b> 4%, which should be near zero and is the false-alarm floor.",
+      "<b>The table</b> lists, for each injected S/N, how many periods were found, detected and called planet.",
+      "On variable stars the further-signal search recovered 46 of 48 planets injected behind the star's own signal."
+    ]
+  },
+  "benchmark-blind": {
+    "kicker": "Benchmark · blind end-to-end runs",
+    "body": "In a blind run the pipeline is given only the photometry of held-out stars. It must find the period itself, derive the parameters and classify. Run blind benchmark queues more of the held-out stars.",
+    "bullets": [
+      "<b>Stars run:</b> 90. Class agrees with the archive label on 86%.",
+      "<b>Period recovered:</b> 55 of 60 exactly, plus 2 at a 1:2 alias.",
+      "<b>Real planets called planet:</b> 29 of 30, with 20 reaching the vetting queue.",
+      "<b>False positives queued:</b> 2 of 60. One of them, TCE 6851425-1, carries an outdated label: NASA's current catalogue lists it as the confirmed planet Kepler-477 b.",
+      "<b>Below.</b> Measured against catalogued period, the distribution of planet probability by true class, the confusion matrix, and every star with its result."
+    ]
+  },
+  "validation": {
+    "kicker": "Validation · acceptance criteria",
+    "body": "Validation runs the verification suite against the system's written acceptance criteria and reports each result with the measured value beside the tolerance.",
+    "bullets": [
+      "<b>BLS period recovery.</b> Maximum error 4.6 × 10<sup>−5</sup> against a limit of 10<sup>−4</sup>.",
+      "<b>Transit depth</b> within 3.25% (limit 5%); <b>radius</b> within 3.78% of NASA Exoplanet Archive values.",
+      "<b>Classification accuracy</b> on held-out Kepler stars, and <b>structured log integrity</b>: every record valid, hash chains intact.",
+      "<b>Extended checks.</b> Physics sanity, golden targets, and injection and recovery.",
+      "<b>The one miss.</b> 11 of 12 golden-target assertions hold. WASP-12 b scores 0.942, under the 0.95 golden-target bar, though it still reaches the vetting queue.",
+      "<b>Run verification suite</b> repeats the checks on demand."
+    ]
+  },
+  "automation": {
+    "kicker": "Automation · champion and challenger",
+    "body": "Automation runs cycles on a schedule so the engine keeps pulling new data and learning from it. It is off by default and can be started by hand with Run a cycle now.",
+    "bullets": [
+      "<b>New targets.</b> The newest TESS Objects of Interest not yet in the catalogue are fetched from MAST and run through the full pipeline.",
+      "<b>New labels.</b> More Kepler stars with settled archive dispositions are downloaded into the training and held-out sets.",
+      "<b>Retraining.</b> Once enough new stars arrive the classifier is retrained. The new model replaces the active one only if it scores no worse on the fixed held-out real stars.",
+      "<b>Schedule.</b> Minutes between cycles, new TOIs per cycle, new labelled stars per cycle, and how many new stars trigger a retrain.",
+      "<b>Model versions.</b> Every training run, accepted or not, with its AUC on real and simulated data.",
+      "For unattended use without the web server: <code>python manage.py autopilot --loop</code>."
+    ]
+  },
+  "audit-log": {
+    "kicker": "Audit log · all runs",
+    "body": "The audit log gathers the structured telemetry from every mathematical stage of every run into one searchable table.",
+    "bullets": [
+      "<b>Filter by level.</b> All, Info, Warning or Error, with running totals.",
+      "<b>Filter by stage</b> or search the message text.",
+      "<b>Each record</b> carries its UTC timestamp, level, stage, message and run id.",
+      "<b>Download JSONL</b> exports the complete log."
+    ]
+  },
+  "calculator": {
+    "kicker": "Calculator · interactive vetting tool",
+    "body": "The calculator applies the engine's physics to numbers you choose, with the result drawn to scale as you change them.",
+    "bullets": [
+      "<b>Presets.</b> HD 209458 b, WASP-12 b, TRAPPIST-1 e and Earth–Sun.",
+      "<b>Inputs.</b> Stellar radius, mass and temperature, orbital period, transit depth, impact parameter and Bond albedo.",
+      "<b>Outputs.</b> Planet radius, radius ratio, semi-major axis, transit duration, equilibrium temperature and insolation relative to Earth.",
+      "<b>Visual model.</b> The same sky view, orbit and light curve used on run pages.",
+      "<b>Record to audit log</b> saves a calculation alongside the pipeline's own records."
+    ]
+  },
+  "settings": {
+    "kicker": "Settings · pipeline defaults",
+    "body": "Settings holds the defaults applied to every new analysis. Each field shows its meaning and its original default; Restore PRD defaults puts everything back.",
+    "bullets": [
+      "<b>Cleaning.</b> Sigma-clip threshold and window, detrend window and polynomial order.",
+      "<b>Search.</b> Minimum and maximum period, minimum and maximum duty cycle, and BLS oversampling.",
+      "<b>Physics and decisions.</b> Impact parameter, Bond albedo, the SDE flag threshold, and the queue confidence a signal needs to be auto-queued for vetting (0.9).",
+      "<b>Acceptance tolerances</b> are fixed and shown read-only.",
+      "<b>System.</b> The relational archive (SQLite or PostgreSQL), the columnar archive (Parquet), the telemetry format and the data directory."
+    ]
+  },
+  "method": {
+    "kicker": "Method · from photometry to vetted candidate",
+    "body": "The method page documents the pipeline in full, with the formula for each stage typeset and the parameters used.",
+    "bullets": [
+      "<b>Stages.</b> Normalisation and outlier rejection, Savitzky-Golay detrending, Box Least Squares, and the physical parameters.",
+      "<b>Dispositions.</b> Vetting queue, Manual review, FP suspect, Eclipsing binary, Noise and No signal, each defined.",
+      "<b>Diagnostic flags.</b> Every flag the engine can raise, such as LOW_SNR, LOW_SDE and FEW_TRANSITS, with what triggers it.",
+      "<b>Plots.</b> How to read each plot that appears on a run page."
+    ]
+  },
+  "outro": {
+    "kicker": "In summary",
+    "body": "Chronos Transit Engine takes raw starlight to a measured planet, a decision you can audit, and a place on the map. It is candid about what it cannot yet do.",
+    "bullets": [
+      "<b>No confirmed new planet.</b> Across the real stars analysed, every signal sent to the vetting queue is a NASA-confirmed planet except KOI-143.01. Confirming a planet takes independent follow-up.",
+      "<b>Variable stars.</b> Two of 48 injected planets are still missed, and 2 of 45 variable stars get a spurious extra signal. Additional signals are candidates for inspection.",
+      "<b>Speed.</b> A four-year Kepler star takes 40 to 190 seconds end to end; a 27-day TESS sector takes a few seconds.",
+      "<b>The map.</b> Orbits are drawn face-on, and 28 planets with no measured distance are left off.",
+      "<b>Useful commands.</b> <code>manage.py seed</code>, <code>build_kepler_dataset</code>, <code>train_model</code>, <code>benchmark</code>, <code>injection_study</code>, <code>autopilot</code>, <code>verify</code>."
+    ]
+  }
+}

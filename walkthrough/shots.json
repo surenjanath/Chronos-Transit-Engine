@@ -1,0 +1,167 @@
+[
+ {
+  "name": "01_overview",
+  "url": "/"
+ },
+ {
+  "name": "02_overview_throughput",
+  "url": "/",
+  "y": 790
+ },
+ {
+  "name": "03_new",
+  "url": "/new/"
+ },
+ {
+  "name": "04_run_verdict",
+  "url": "/runs/bdfd40d9336f/",
+  "wait": 5000
+ },
+ {
+  "name": "05_run_diagnostics",
+  "url": "/runs/bdfd40d9336f/",
+  "wait": 5000,
+  "js": "[...document.querySelectorAll('h2')].find(h=>h.textContent.includes('False-positive')).id='wtA'",
+  "sel": "#wtA",
+  "jsWait": 200
+ },
+ {
+  "name": "06_run_visual",
+  "url": "/runs/bdfd40d9336f/",
+  "wait": 5000,
+  "sel": "#visualModel",
+  "settle": 2500
+ },
+ {
+  "name": "07_run_evidence",
+  "url": "/runs/bdfd40d9336f/",
+  "wait": 5000,
+  "sel": "#oddEvenPlot",
+  "pad": 60,
+  "settle": 2500
+ },
+ {
+  "name": "08_run_classifier",
+  "url": "/runs/bdfd40d9336f/",
+  "wait": 5000,
+  "sel": "#neuralDone",
+  "pad": 70,
+  "settle": 4000
+ },
+ {
+  "name": "09_run_lightcurve",
+  "url": "/runs/bdfd40d9336f/",
+  "wait": 5000,
+  "sel": "#plots",
+  "settle": 2500
+ },
+ {
+  "name": "11_run_audit",
+  "url": "/runs/bdfd40d9336f/",
+  "wait": 5000,
+  "js": "[...document.querySelectorAll('h2')].find(h=>h.textContent.includes('Audit trail')).id='wtB'",
+  "sel": "#wtB",
+  "jsWait": 200
+ },
+ {
+  "name": "12_targets",
+  "url": "/targets/"
+ },
+ {
+  "name": "13_target",
+  "url": "/targets/720/"
+ },
+ {
+  "name": "14_runs",
+  "url": "/runs/"
+ },
+ {
+  "name": "15_vetting",
+  "url": "/vetting/"
+ },
+ {
+  "name": "16_atlas",
+  "url": "/atlas/"
+ },
+ {
+  "name": "17_map_solar",
+  "url": "/map/",
+  "wait": 5000,
+  "sel": "#mapViews",
+  "pad": 16
+ },
+ {
+  "name": "18_map_neighbourhood",
+  "url": "/map/#top/3.86/10.45/0.06/TRAPPIST-1",
+  "wait": 5000,
+  "sel": "#mapViews",
+  "pad": 16
+ },
+ {
+  "name": "19_map_trappist",
+  "url": "/map/#top/7.727/20.906/0.0000000042/TRAPPIST-1",
+  "wait": 5000,
+  "sel": "#mapViews",
+  "pad": 16
+ },
+ {
+  "name": "20_map_galaxy",
+  "url": "/map/",
+  "wait": 5000,
+  "js": "document.querySelector('[data-preset=galaxy]').click()",
+  "jsWait": 4000,
+  "sel": "#mapViews",
+  "pad": 16
+ },
+ {
+  "name": "21_map_sky",
+  "url": "/map/",
+  "wait": 5000,
+  "js": "document.querySelector('[data-view=sky]').click()",
+  "jsWait": 2500,
+  "sel": "#mapViews",
+  "pad": 16
+ },
+ {
+  "name": "22_benchmark",
+  "url": "/benchmark/"
+ },
+ {
+  "name": "23_benchmark_injection",
+  "url": "/benchmark/",
+  "js": "[...document.querySelectorAll('h2')].find(h=>h.textContent.includes('Injection')).id='wtA'",
+  "sel": "#wtA",
+  "jsWait": 200
+ },
+ {
+  "name": "24_benchmark_blind",
+  "url": "/benchmark/",
+  "js": "[...document.querySelectorAll('h2')].find(h=>h.textContent.includes('Blind end')).id='wtA'",
+  "sel": "#wtA",
+  "jsWait": 200
+ },
+ {
+  "name": "25_validation",
+  "url": "/validation/"
+ },
+ {
+  "name": "26_automation",
+  "url": "/automation/"
+ },
+ {
+  "name": "27_logs",
+  "url": "/logs/"
+ },
+ {
+  "name": "28_calculator",
+  "url": "/calculator/"
+ },
+ {
+  "name": "29_settings",
+  "url": "/settings/"
+ },
+ {
+  "name": "30_method",
+  "url": "/method/"
+ }
+]

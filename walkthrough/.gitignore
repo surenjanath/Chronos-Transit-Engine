@@ -1,0 +1,7 @@
+.venv/
+video/node_modules/
+video/out/
+video/public/audio/
+.DS_Store
+video/public/screens/
+video/public/clips/

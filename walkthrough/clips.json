@@ -1,0 +1,15 @@
+[
+ {"name":"c_run_visual","url":"/runs/bdfd40d9336f/","wait":5000,"sel":"#visualModel","settle":2500,"record":{"seconds":9}},
+ {"name":"c_run_classifier","url":"/runs/bdfd40d9336f/","wait":5000,"sel":"#neuralDone","pad":70,"settle":2500,"record":{"seconds":11}},
+ {"name":"c_map_zoomout","url":"/map/","wait":5000,"sel":"#mapViews","pad":16,"record":{"seconds":7.5,"actions":[
+   {"at":1.0,"js":"document.querySelector('[data-preset=voyager]').click()"},
+   {"at":4.0,"js":"document.querySelector('[data-preset=nearest]').click()"}]}},
+ {"name":"c_map_galaxy","url":"/map/#top/0/0/0.05","wait":5000,"sel":"#mapViews","pad":16,"record":{"seconds":7,"actions":[
+   {"at":0.8,"js":"document.querySelector('[data-preset=kepler]').click()"},
+   {"at":3.6,"js":"document.querySelector('[data-preset=galaxy]').click()"}]}},
+ {"name":"c_calculator","url":"/calculator/","wait":3500,"record":{"seconds":10.5,"actions":[
+   {"at":0.8,"js":"document.querySelectorAll('#calcForm [data-preset]')[1].click()"},
+   {"at":3.3,"js":"document.querySelectorAll('#calcForm [data-preset]')[2].click()"},
+   {"at":5.8,"js":"document.querySelectorAll('#calcForm [data-preset]')[3].click()"},
+   {"at":8.3,"js":"document.querySelectorAll('#calcForm [data-preset]')[0].click()"}]}}
+]

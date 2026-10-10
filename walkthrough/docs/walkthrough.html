@@ -1,0 +1,665 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Chronos Transit Engine — System Walkthrough</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --primary: #1c1c1c;
+    --primary-light: #2e2e2b;
+    --primary-dark: #111110;
+    --gold: #b4533c;
+    --on-dark: #c4c4be;
+    --rule: #d2d2cc;
+    --bg: #e6e6e4;
+    --surface: #f4f4f2;
+    --text: #1c1c1c;
+    --text-secondary: #5c5c57;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: 'Instrument Sans', 'Avenir Next', sans-serif;
+    color: var(--text);
+    background: var(--bg);
+    font-size: 12.5px;
+  }
+  h1, h2, h3 { font-family: 'Instrument Sans', 'Avenir Next', sans-serif; margin: 0; }
+  @page { size: A4; margin: 0; }
+
+  .page { width: 210mm; height: 297mm; position: relative; page-break-after: always; page-break-inside: avoid; overflow: hidden; }
+  .page:last-child { page-break-after: auto; }
+
+  /* Cover */
+  .cover {
+    background: radial-gradient(circle at 50% 15%, var(--primary-light) 0%, var(--primary) 55%, var(--primary-dark) 100%);
+    color: #fff;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 40mm 20mm;
+  }
+  .mark { margin-bottom: 14mm; display: inline-flex; }
+  .mark img { height: 24mm; display: block; border-radius: 5mm; border: 1px solid rgba(236,236,232,0.28); }
+  .mark.small { margin-bottom: 8mm; }
+  .mark.small img { height: 16mm; border-radius: 3.4mm; }
+  .cover .eyebrow {
+    font-family: 'Instrument Sans', 'Avenir Next', sans-serif;
+    font-weight: 700;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: var(--on-dark);
+    font-size: 12px;
+    margin-bottom: 8mm;
+  }
+  .cover h1 {
+    font-weight: 500;
+    font-size: 50px;
+    letter-spacing: -1.8px;
+    line-height: 1.15;
+    margin-bottom: 6mm;
+  }
+  .cover .tagline {
+    font-size: 16px;
+    color: rgba(255,255,255,0.85);
+    font-weight: 500;
+    margin-bottom: 26mm;
+  }
+  .cover .meta {
+    font-size: 11px;
+    color: rgba(255,255,255,0.6);
+    letter-spacing: 1px;
+  }
+  .cover .divider { width: 48px; height: 2px; background: var(--on-dark); margin: 10mm 0; }
+
+  /* TOC */
+  .toc-page { padding: 18mm 22mm; background: var(--surface); }
+  .toc-page .kicker-top {
+    font-weight: 700; letter-spacing: 3px; text-transform: uppercase;
+    color: var(--primary); font-size: 11px; margin-bottom: 4mm;
+  }
+  .toc-page h1 { font-size: 26px; font-weight: 500; letter-spacing: -0.6px; color: var(--text); margin-bottom: 7mm; }
+  .toc-row {
+    display: flex; align-items: baseline; gap: 6mm;
+    padding: 1.75mm 0; border-bottom: 1px solid var(--rule);
+  }
+  .toc-num { font-family: 'Instrument Sans', 'Avenir Next', sans-serif; font-weight: 600; color: var(--gold); font-size: 11px; width: 10mm; font-variant-numeric: tabular-nums; }
+  .toc-title { font-family: 'Instrument Sans', 'Avenir Next', sans-serif; font-weight: 500; font-size: 12px; flex: 1; color: var(--text); }
+  .toc-kicker { font-size: 8.5px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px; }
+
+  /* Section pages */
+  .section-page { background: var(--surface); padding: 16mm 16mm; }
+  .scene {
+    display: flex;
+    align-items: center;
+    gap: 12mm;
+    height: 265mm;
+  }
+  .scene.reverse { flex-direction: row-reverse; }
+  .scene-media { flex: 0 0 68mm; display: flex; justify-content: center; }
+  .phone-frame {
+    width: 62mm;
+    border-radius: 7mm;
+    background: #0B0F0C;
+    padding: 2.2mm;
+    box-shadow: 0 10px 30px -8px rgba(18,32,24,0.4);
+  }
+  .phone-frame img { width: 100%; display: block; border-radius: 5.2mm; }
+  .phone-frame.placeholder { height: 130mm; }
+
+  /* Web platform: stacked layout, wide browser-chrome frame on top */
+  .scene.web { flex-direction: column; align-items: stretch; gap: 8mm; height: auto; }
+  .scene.text-only { padding-top: 14mm; }
+  .scene.text-only .lead { font-size: 15px; }
+  .scene.text-only li { font-size: 13px; margin-bottom: 3.6mm; }
+  code { font-family: "SF Mono", Menlo, monospace; font-size: 0.92em; background: #e6e6e4; padding: 0.2mm 1.2mm; border-radius: 1mm; }
+  li b { color: var(--text); font-weight: 600; }
+  .scene.web .scene-media { flex: none; width: 100%; }
+  .browser-frame {
+    width: 100%; max-height: 150mm; border-radius: 4mm; overflow: hidden;
+    background: #d2d2cc; box-shadow: 0 8px 24px -10px rgba(0,0,0,0.35); border: 1px solid var(--rule);
+    display: flex; flex-direction: column;
+  }
+  /* object-fit: contain — a web screenshot's aspect ratio is unpredictable
+     (a 16:9 viewport capture vs. a tall full-page capture), so this always
+     letterboxes inside the capped height instead of blowing out the page. */
+  .browser-frame img { width: 100%; flex: 1; min-height: 0; object-fit: contain; background: #e6e6e4; display: block; }
+  .browser-frame.placeholder { height: 90mm; }
+  .browser-bar { display: flex; align-items: center; gap: 3mm; padding: 2.2mm 4mm; background: #dcdcd8; }
+  .browser-bar .dot { width: 2.6mm; height: 2.6mm; border-radius: 50%; display: inline-block; }
+  .browser-bar .dot.r { background: #FF5F57; }
+  .browser-bar .dot.y { background: #FEBC2E; }
+  .browser-bar .dot.g { background: #28C840; }
+  .browser-url {
+    margin-left: 2mm; background: #eeeeec; border-radius: 999px; padding: 1.3mm 4mm;
+    font-size: 9px; color: var(--text-secondary); font-weight: 600;
+  }
+
+  .scene-copy { flex: 1; }
+  .scene-num {
+    font-family: 'Instrument Sans', 'Avenir Next', sans-serif; font-weight: 600; color: var(--gold);
+    font-size: 11px; letter-spacing: 1px; margin-bottom: 3mm;
+  }
+  .kicker {
+    font-weight: 700; letter-spacing: 3px; text-transform: uppercase;
+    color: var(--text-secondary); font-size: 9.5px; margin-bottom: 3mm;
+  }
+  .scene-copy h2 { font-size: 27px; font-weight: 500; letter-spacing: -0.6px; color: var(--text); margin-bottom: 5mm; line-height: 1.2; }
+  .scene-copy .lead { font-size: 14px; line-height: 1.6; color: var(--text); margin-bottom: 6mm; }
+  .scene-copy ul { margin: 0; padding-left: 4.5mm; }
+  .scene-copy li { font-size: 12.5px; line-height: 1.55; color: var(--text-secondary); margin-bottom: 3mm; }
+  .scene-copy li::marker { color: var(--gold); }
+
+  /* Closing */
+  .closing {
+    background: radial-gradient(circle at 50% 85%, var(--primary-light) 0%, var(--primary) 55%, var(--primary-dark) 100%);
+    color: #fff; display: flex; flex-direction: column; align-items: center;
+    justify-content: center; text-align: center; padding: 40mm 24mm;
+  }
+  .closing h2 { font-size: 30px; font-weight: 500; letter-spacing: -0.8px; margin-bottom: 6mm; }
+  .closing p { font-size: 13px; color: rgba(255,255,255,0.8); max-width: 130mm; line-height: 1.7; }
+  .closing .tag { color: var(--on-dark); font-weight: 600; letter-spacing: 2px; text-transform: uppercase; font-size: 11px; margin-top: 10mm; }
+
+  .footer-strip {
+    position: absolute; bottom: 10mm; left: 16mm; right: 16mm;
+    display: flex; justify-content: space-between;
+    font-size: 9px; color: var(--text-secondary); letter-spacing: 0.5px;
+  }
+</style>
+</head>
+<body>
+
+  <div class="page cover">
+    <div class="mark"><img src="file:///Users/surenjanath/Desktop/AI Projects/NASA/walkthrough/assets/logo.png" /></div>
+    <div class="eyebrow">Complete System Walkthrough</div>
+    <h1>Chronos Transit Engine</h1>
+    <div class="tagline">Finds planets in starlight</div>
+    <div class="divider"></div>
+    <div class="meta">Feature Guide &amp; Screen-by-Screen Reference · October 9, 2026</div>
+  </div>
+
+  <div class="page toc-page">
+    <div class="kicker-top">Contents</div>
+    <h1>Everything in this guide</h1>
+    <div class="toc-row"><span class="toc-num">01</span><span class="toc-title">Chronos Transit Engine</span><span class="toc-kicker">What the system is</span></div>
+<div class="toc-row"><span class="toc-num">02</span><span class="toc-title">Current conditions at a glance</span><span class="toc-kicker">Overview · home page</span></div>
+<div class="toc-row"><span class="toc-num">03</span><span class="toc-title">Queue, activity and throughput</span><span class="toc-kicker">Overview · further down</span></div>
+<div class="toc-row"><span class="toc-num">04</span><span class="toc-title">Start with a star</span><span class="toc-kicker">New analysis · ingest a light curve</span></div>
+<div class="toc-row"><span class="toc-num">05</span><span class="toc-title">The verdict, and the planet it measured</span><span class="toc-kicker">Run page · the answer</span></div>
+<div class="toc-row"><span class="toc-num">06</span><span class="toc-title">False-positive checks and the NASA cross-match</span><span class="toc-kicker">Run page · is it really a planet?</span></div>
+<div class="toc-row"><span class="toc-num">07</span><span class="toc-title">A visual model, drawn to scale</span><span class="toc-kicker">Run page · visual model</span></div>
+<div class="toc-row"><span class="toc-num">08</span><span class="toc-title">The evidence, plot by plot</span><span class="toc-kicker">Run page · the evidence</span></div>
+<div class="toc-row"><span class="toc-num">09</span><span class="toc-title">The classifier at work</span><span class="toc-kicker">Run page · the classifier</span></div>
+<div class="toc-row"><span class="toc-num">10</span><span class="toc-title">Light curve, periodogram and folded transit</span><span class="toc-kicker">Run page · the data</span></div>
+<div class="toc-row"><span class="toc-num">11</span><span class="toc-title">An audit trail for every stage</span><span class="toc-kicker">Run page · audit trail</span></div>
+<div class="toc-row"><span class="toc-num">12</span><span class="toc-title">Every host star in the archive</span><span class="toc-kicker">Targets · host stars</span></div>
+<div class="toc-row"><span class="toc-num">13</span><span class="toc-title">One star, in context</span><span class="toc-kicker">Targets · one star</span></div>
+<div class="toc-row"><span class="toc-num">14</span><span class="toc-title">The pipeline ledger</span><span class="toc-kicker">Runs · pipeline ledger</span></div>
+<div class="toc-row"><span class="toc-num">15</span><span class="toc-title">A human makes the final call</span><span class="toc-kicker">Vetting · human review</span></div>
+<div class="toc-row"><span class="toc-num">16</span><span class="toc-title">Detections among the known planets</span><span class="toc-kicker">Atlas · the known population</span></div>
+<div class="toc-row"><span class="toc-num">17</span><span class="toc-title">The map begins at home</span><span class="toc-kicker">Map · you are here</span></div>
+<div class="toc-row"><span class="toc-num">18</span><span class="toc-title">The neighbourhood, and how far it really is</span><span class="toc-kicker">Map · the nearest stars</span></div>
+<div class="toc-row"><span class="toc-num">19</span><span class="toc-title">Seven orbits and a liquid-water zone</span><span class="toc-kicker">Map · a system up close</span></div>
+<div class="toc-row"><span class="toc-num">20</span><span class="toc-title">Every known planetary system</span><span class="toc-kicker">Map · the whole Galaxy</span></div>
+<div class="toc-row"><span class="toc-num">21</span><span class="toc-title">The sky as seen from Earth</span><span class="toc-kicker">Map · the sky from Earth</span></div>
+<div class="toc-row"><span class="toc-num">22</span><span class="toc-title">Scored on real stars it never saw</span><span class="toc-kicker">Benchmark · real stars with known answers</span></div>
+<div class="toc-row"><span class="toc-num">23</span><span class="toc-title">Injection and recovery</span><span class="toc-kicker">Benchmark · injection and recovery</span></div>
+<div class="toc-row"><span class="toc-num">24</span><span class="toc-title">Blind, end to end</span><span class="toc-kicker">Benchmark · blind end-to-end runs</span></div>
+<div class="toc-row"><span class="toc-num">25</span><span class="toc-title">Checked against its acceptance criteria</span><span class="toc-kicker">Validation · acceptance criteria</span></div>
+<div class="toc-row"><span class="toc-num">26</span><span class="toc-title">New data in, better model out</span><span class="toc-kicker">Automation · champion and challenger</span></div>
+<div class="toc-row"><span class="toc-num">27</span><span class="toc-title">Every stage of every run</span><span class="toc-kicker">Audit log · all runs</span></div>
+<div class="toc-row"><span class="toc-num">28</span><span class="toc-title">Work the physics by hand</span><span class="toc-kicker">Calculator · interactive vetting tool</span></div>
+<div class="toc-row"><span class="toc-num">29</span><span class="toc-title">Pipeline defaults in one place</span><span class="toc-kicker">Settings · pipeline defaults</span></div>
+<div class="toc-row"><span class="toc-num">30</span><span class="toc-title">The mathematics, written out</span><span class="toc-kicker">Method · from photometry to vetted candidate</span></div>
+<div class="toc-row"><span class="toc-num">31</span><span class="toc-title">From starlight to a vetted candidate</span><span class="toc-kicker">In summary</span></div>
+    <div class="footer-strip"><span>Chronos Transit Engine</span><span>Page 2</span></div>
+  </div>
+
+  
+  <div class="page section-page">
+    <section class="scene web text-only">
+      
+      <div class="scene-copy">
+        <div class="scene-num">01 / 31</div>
+        <div class="kicker">What the system is</div>
+        <h2>Chronos Transit Engine</h2>
+        <p class="lead">Chronos Transit Engine finds planets in starlight. It takes a star's brightness over time from NASA's TESS, Kepler or K2 missions, searches it for the small, regular dips a planet makes when it crosses its star, measures the planet, and decides whether the dip is a planet, an eclipsing binary star, or noise. It is one Django project: server-rendered pages, the science pipeline, and the archive. This guide walks through every page in the order you would use them.</p>
+        <ul><li><b>Ingest.</b> Any TESS, Kepler or K2 target from MAST by name, a CSV upload, or a simulated star.</li><li><b>Clean.</b> Median normalisation, a rolling sigma clip, and a Savitzky-Golay detrend with the transit masked.</li><li><b>Search.</b> Box Least Squares over 0.5 to 30 days on all CPU cores, with period-alias correction.</li><li><b>Measure.</b> Period, depth, duration, planet radius (with a limb-darkened fit and 1σ errors), orbit size and temperature.</li><li><b>Vet.</b> Odd/even depth, a secondary eclipse at any orbital phase, centroid motion, V-shape, radius and duration.</li><li><b>Classify.</b> A five-network ensemble of dual-branch 1D-CNNs, plus a second stage that weighs the vetting evidence.</li><li><b>Look further.</b> Each signal and the star's own variability are removed, then the remainder is searched again for more planets.</li><li><b>Check itself.</b> A blind benchmark on held-out real stars, injection and recovery, golden targets and written acceptance criteria.</li><li><b>Locate.</b> A zoomable map of about 4,800 real planetary systems, with distances and travel times from Earth.</li><li><b>Record.</b> A hash-chained JSONL audit log per run, Parquet archives, and SQLite or PostgreSQL storage.</li><li><b>Run it.</b> <code>./run.sh</code> starts the engine on http://127.0.0.1:8765. The first start builds a virtualenv, applies migrations and trains the classifier if no checkpoint exists.</li></ul>
+      </div>
+    </section>
+    <div class="footer-strip"><span>Chronos Transit Engine</span><span>01 / 31 — Chronos Transit Engine</span></div>
+  </div>
+
+  <div class="page section-page">
+    <section class="scene web">
+      <div class="scene-media"><div class="browser-frame"><div class="browser-bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="browser-url">localhost:8765</span></div><img src="file:///Users/surenjanath/Desktop/AI Projects/NASA/walkthrough/screenshots/01_overview.png" /></div></div>
+      <div class="scene-copy">
+        <div class="scene-num">02 / 31</div>
+        <div class="kicker">Overview · home page</div>
+        <h2>Current conditions at a glance</h2>
+        <p class="lead">The overview is the first page you see and the fastest way to read the state of the archive. The left side counts what the pipeline has done; the right side reports how the classifier is performing and where the runs came from.</p>
+        <ul><li><b>Headline figures.</b> Targets, completed runs, planet candidates sent to vetting, and false positives flagged before export.</li><li><b>Candidate yield.</b> The share of runs that produced a planet candidate (32% here: 37 of 117), and the number of signals awaiting a human decision.</li><li><b>Highest planet probability.</b> The strongest signals in the archive; each row opens its run.</li><li><b>Extended report.</b> The vetting queue size, runs in motion, median run time, the classifier's AUC against its 0.96 floor, and the run sources (blind benchmark, synthetic, MAST archive).</li><li><b>Always on screen.</b> The navigation bar, the Idle / running status, Export, the light/dark Theme switch, and the dock at the bottom with shortcuts to New analysis, Vetting, Verify, Log and the candidates CSV.</li></ul>
+      </div>
+    </section>
+    <div class="footer-strip"><span>Chronos Transit Engine</span><span>02 / 31 — Current conditions at a glance</span></div>
+  </div>
+
+  <div class="page section-page">
+    <section class="scene web">
+      <div class="scene-media"><div class="browser-frame"><div class="browser-bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="browser-url">localhost:8765</span></div><img src="file:///Users/surenjanath/Desktop/AI Projects/NASA/walkthrough/screenshots/02_overview_throughput.png" /></div></div>
+      <div class="scene-copy">
+        <div class="scene-num">03 / 31</div>
+        <div class="kicker">Overview · further down</div>
+        <h2>Queue, activity and throughput</h2>
+        <p class="lead">Scrolling the overview shows the working detail behind the headline figures: what is queued, what just happened, where the time goes, and how output has moved over the last two weeks.</p>
+        <ul><li><b>Vetting queue.</b> The signals waiting for review, each tagged Vetting queue or Manual review.</li><li><b>Recent activity.</b> Runs starting and being classified, newest first.</li><li><b>Stage timing.</b> Average time per pipeline stage. The BLS period search and the refined analysis dominate; the other stages take fractions of a second.</li><li><b>Throughput.</b> Completed runs and planet candidates per day over the last 14 days.</li><li><b>Disposition of completed runs.</b> Planet candidates, needs review, eclipsing binaries and noise / no signal, plus the operator decisions made so far.</li></ul>
+      </div>
+    </section>
+    <div class="footer-strip"><span>Chronos Transit Engine</span><span>03 / 31 — Queue, activity and throughput</span></div>
+  </div>
+
+  <div class="page section-page">
+    <section class="scene web">
+      <div class="scene-media"><div class="browser-frame"><div class="browser-bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="browser-url">localhost:8765/new/</span></div><img src="file:///Users/surenjanath/Desktop/AI Projects/NASA/walkthrough/screenshots/03_new.png" /></div></div>
+      <div class="scene-copy">
+        <div class="scene-num">04 / 31</div>
+        <div class="kicker">New analysis · ingest a light curve</div>
+        <h2>Start with a star</h2>
+        <p class="lead">Every run starts on this page. Choose where the photometry comes from, describe the host star if you want to override the catalogue, and start the full pipeline.</p>
+        <ul><li><b>MAST archive.</b> Enter a TIC or KIC id or a name such as WASP-12, pick the mission, and optionally Search MAST to choose a specific sector or quarter. Separate several targets with commas to queue a batch.</li><li><b>Synthetic injection.</b> Simulate a star with a planet or binary of your choosing, useful for testing the pipeline.</li><li><b>CSV upload.</b> Run the pipeline on your own light curve.</li><li><b>Host star.</b> Effective temperature, radius and mass. Left on auto, MAST targets use the TESS Input Catalog; otherwise a solar-type star is assumed.</li><li><b>Pipeline overrides.</b> Per-run changes to the saved defaults (sigma-clip threshold, detrend window, period range).</li><li><b>While it runs.</b> The run page reports progress in plain words, shows the eleven stages and the time elapsed, and keeps a running list of what has been found so far. MAST targets download on first use, then run in 10 to 30 seconds.</li></ul>
+      </div>
+    </section>
+    <div class="footer-strip"><span>Chronos Transit Engine</span><span>04 / 31 — Start with a star</span></div>
+  </div>
+
+  <div class="page section-page">
+    <section class="scene web">
+      <div class="scene-media"><div class="browser-frame"><div class="browser-bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="browser-url">localhost:8765/runs/bdfd40d9336f/</span></div><img src="file:///Users/surenjanath/Desktop/AI Projects/NASA/walkthrough/screenshots/04_run_verdict.png" /></div></div>
+      <div class="scene-copy">
+        <div class="scene-num">05 / 31</div>
+        <div class="kicker">Run page · the answer</div>
+        <h2>The verdict, and the planet it measured</h2>
+        <p class="lead">A finished run opens on its verdict. This example is WASP-12 from TESS sector 20: a 94.2% planet probability, a signal-to-noise of 328 from 21 transits, and the disposition Vetting queue, meaning a high-confidence transit that is ready for human review.</p>
+        <ul><li><b>Three probabilities.</b> Planet candidate, eclipsing binary, and stellar or instrument noise. The line underneath shows what the CNN said alone before the vetting evidence was weighed.</li><li><b>Derived parameters.</b> Period 1.09141 d, depth 14,710 ppm, radius 23.14 R⊕, with the radius ratio, semi-major axis, theoretical and fitted transit duration, and equilibrium temperature.</li><li><b>Limb-darkened fit.</b> A second radius (22.16 ± 0.12 R⊕) with 1σ errors, plus fitted impact parameter, a/R★ and stellar density. The simple depth formula overestimates the radius by a few percent because limb darkening deepens mid-transit, so both are shown.</li><li><b>Actions.</b> Back to all runs, open the target, see the star on the map, re-run, or delete.</li></ul>
+      </div>
+    </section>
+    <div class="footer-strip"><span>Chronos Transit Engine</span><span>05 / 31 — The verdict, and the planet it measured</span></div>
+  </div>
+
+  <div class="page section-page">
+    <section class="scene web">
+      <div class="scene-media"><div class="browser-frame"><div class="browser-bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="browser-url">localhost:8765/runs/bdfd40d9336f/</span></div><img src="file:///Users/surenjanath/Desktop/AI Projects/NASA/walkthrough/screenshots/05_run_diagnostics.png" /></div></div>
+      <div class="scene-copy">
+        <div class="scene-num">06 / 31</div>
+        <div class="kicker">Run page · is it really a planet?</div>
+        <h2>False-positive checks and the NASA cross-match</h2>
+        <p class="lead">Below the verdict, the engine lists every false-positive check it made and compares its result with NASA's catalogue. Human vetting and the archived data products sit alongside.</p>
+        <ul><li><b>False-positive diagnostics.</b> Odd/even depth, secondary eclipse at phase 0.5, in-transit centroid shift, transit shape, fitted against theoretical duration, out-of-transit scatter, shape-derived geometry and stellar density.</li><li><b>A real occultation is not held against a planet.</b> A second dip counts against a planet only when it is too bright for a planet to produce, so a hot Jupiter like WASP-12 b raises no flag.</li><li><b>NASA Exoplanet Archive cross-match.</b> The run is matched against confirmed planets, TOIs and KOIs. Here it matches WASP-12 b at the same period, with the radius within about 5% of the catalogued value.</li><li><b>Human vetting.</b> Add an optional reviewer note (written to the audit trail), then Confirm candidate or Mark false positive.</li><li><b>Archive.</b> Download the light curve, periodogram, folded curve and CNN tensors as Parquet, and the audit log as JSONL.</li></ul>
+      </div>
+    </section>
+    <div class="footer-strip"><span>Chronos Transit Engine</span><span>06 / 31 — False-positive checks and the NASA cross-match</span></div>
+  </div>
+
+  <div class="page section-page">
+    <section class="scene web">
+      <div class="scene-media"><div class="browser-frame"><div class="browser-bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="browser-url">localhost:8765/runs/bdfd40d9336f/</span></div><img src="file:///Users/surenjanath/Desktop/AI Projects/NASA/walkthrough/screenshots/06_run_visual.png" /></div></div>
+      <div class="scene-copy">
+        <div class="scene-num">07 / 31</div>
+        <div class="kicker">Run page · visual model</div>
+        <h2>A visual model, drawn to scale</h2>
+        <p class="lead">The visual model turns the fitted numbers into a picture of what the star and its companion are doing, and shows how well that picture explains the data.</p>
+        <ul><li><b>Sky view, to scale.</b> The companion crossing the stellar disc at the fitted radius ratio and impact parameter.</li><li><b>Orbit from above.</b> The orbit at the fitted a/R★, with the direction to the observer.</li><li><b>Animated light curve.</b> The brightness changes in step with the animation. Click to pause; move the pointer to scrub.</li><li><b>Expected against observed.</b> The binned observations, the limb-darkened fit, and the prediction for the catalogued star, with the residual scatter plotted below.</li></ul>
+      </div>
+    </section>
+    <div class="footer-strip"><span>Chronos Transit Engine</span><span>07 / 31 — A visual model, drawn to scale</span></div>
+  </div>
+
+  <div class="page section-page">
+    <section class="scene web">
+      <div class="scene-media"><div class="browser-frame"><div class="browser-bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="browser-url">localhost:8765/runs/bdfd40d9336f/</span></div><img src="file:///Users/surenjanath/Desktop/AI Projects/NASA/walkthrough/screenshots/07_run_evidence.png" /></div></div>
+      <div class="scene-copy">
+        <div class="scene-num">08 / 31</div>
+        <div class="kicker">Run page · the evidence</div>
+        <h2>The evidence, plot by plot</h2>
+        <p class="lead">Three small plots carry the evidence a human vetter looks for, each with a one-line reading guide. Below them the system is put beside our own.</p>
+        <ul><li><b>Odd against even transits.</b> A planet gives identical curves. Different depths mean an eclipsing binary at twice the period.</li><li><b>Half an orbit later.</b> A dip at phase 0.5 is a secondary eclipse: the companion shines by its own light.</li><li><b>Depth of each transit.</b> The dashed line is the fitted depth. Scatter beyond the noise points to blends or spots.</li><li><b>To scale with the Solar System.</b> The companion drawn beside Earth, Neptune and Jupiter, and its orbit beside Mercury's and Earth's. WASP-12 b orbits 46 times closer than Earth does; light from its star reaches it in 11 seconds.</li></ul>
+      </div>
+    </section>
+    <div class="footer-strip"><span>Chronos Transit Engine</span><span>08 / 31 — The evidence, plot by plot</span></div>
+  </div>
+
+  <div class="page section-page">
+    <section class="scene web">
+      <div class="scene-media"><div class="browser-frame"><div class="browser-bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="browser-url">localhost:8765/runs/bdfd40d9336f/</span></div><img src="file:///Users/surenjanath/Desktop/AI Projects/NASA/walkthrough/screenshots/08_run_classifier.png" /></div></div>
+      <div class="scene-copy">
+        <div class="scene-num">09 / 31</div>
+        <div class="kicker">Run page · the classifier</div>
+        <h2>The classifier at work</h2>
+        <p class="lead">The classifier diagram is drawn with this run's own folded light curve as input and its own probabilities as output. While a run is in progress the same diagram sits idle until its stage arrives, then animates.</p>
+        <ul><li><b>Two branches.</b> A global branch sees the whole orbit in 201 bins; a local branch sees the transit in 61 bins, in four views: all transits, odd, even, and the window half an orbit later.</li><li><b>Ensemble.</b> Five networks are trained, each holding out a different fifth of the real training stars.</li><li><b>Second stage.</b> A small ensemble combines the CNN probabilities with the vetting evidence. For WASP-12 b the CNN alone gave 58.6% planet; the vetting evidence moved the final answer to 94.2%. The final answer is what every run reports.</li><li><b>Every transit, stacked.</b> One row per observed transit, so a single odd event stands out.</li><li><b>What the classifier looked at.</b> Occlusion saliency for the local and global views: which parts of the curve moved the answer.</li></ul>
+      </div>
+    </section>
+    <div class="footer-strip"><span>Chronos Transit Engine</span><span>09 / 31 — The classifier at work</span></div>
+  </div>
+
+  <div class="page section-page">
+    <section class="scene web">
+      <div class="scene-media"><div class="browser-frame"><div class="browser-bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="browser-url">localhost:8765/runs/bdfd40d9336f/</span></div><img src="file:///Users/surenjanath/Desktop/AI Projects/NASA/walkthrough/screenshots/09_run_lightcurve.png" /></div></div>
+      <div class="scene-copy">
+        <div class="scene-num">10 / 31</div>
+        <div class="kicker">Run page · the data</div>
+        <h2>Light curve, periodogram and folded transit</h2>
+        <p class="lead">The plots section shows the photometry the run was built from and the search that found the period. All plots can be dragged to zoom.</p>
+        <ul><li><b>Light curve.</b> 16,551 cadences over 26.3 days at 2-minute cadence. Switch between Normalized + trend and Detrended. Dashed lines mark predicted transit times from the fitted ephemeris.</li><li><b>BLS periodogram.</b> Signal residue over 15,192 trial periods, with the best period labelled at the peak.</li><li><b>Phase-folded transit.</b> Every transit folded onto one curve, shown as the exact tensors the CNN receives: Local (61 bins) or Global (201 bins).</li><li><b>Period aliases.</b> The best peak and its simple multiples are re-examined on a fine grid, and the period is doubled or tripled when only every second or third epoch shows a transit.</li></ul>
+      </div>
+    </section>
+    <div class="footer-strip"><span>Chronos Transit Engine</span><span>10 / 31 — Light curve, periodogram and folded transit</span></div>
+  </div>
+
+  <div class="page section-page">
+    <section class="scene web">
+      <div class="scene-media"><div class="browser-frame"><div class="browser-bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="browser-url">localhost:8765/runs/bdfd40d9336f/</span></div><img src="file:///Users/surenjanath/Desktop/AI Projects/NASA/walkthrough/screenshots/11_run_audit.png" /></div></div>
+      <div class="scene-copy">
+        <div class="scene-num">11 / 31</div>
+        <div class="kicker">Run page · audit trail</div>
+        <h2>An audit trail for every stage</h2>
+        <p class="lead">Every run closes with its audit trail: one schema-validated JSONL record per stage, each chained to the previous one with a SHA-256 hash.</p>
+        <ul><li><b>Stages recorded.</b> Ingest, normalisation, outlier rejection, detrending, BLS search, phase folding, physics derivation, vetting diagnostics, CNN inference, refined analysis, archive cross-match and archive.</li><li><b>Verify integrity.</b> Recomputes the hash chain and reports whether any record has been altered.</li><li><b>Download JSONL.</b> The raw log for this run.</li><li><b>Reviewer decisions</b> and notes made on the vetting panel are written to the same trail.</li></ul>
+      </div>
+    </section>
+    <div class="footer-strip"><span>Chronos Transit Engine</span><span>11 / 31 — An audit trail for every stage</span></div>
+  </div>
+
+  <div class="page section-page">
+    <section class="scene web">
+      <div class="scene-media"><div class="browser-frame"><div class="browser-bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="browser-url">localhost:8765/targets/</span></div><img src="file:///Users/surenjanath/Desktop/AI Projects/NASA/walkthrough/screenshots/12_targets.png" /></div></div>
+      <div class="scene-copy">
+        <div class="scene-num">12 / 31</div>
+        <div class="kicker">Targets · host stars</div>
+        <h2>Every host star in the archive</h2>
+        <p class="lead">The targets page lists every host star in the archive, with its stellar parameters and the latest result found for it.</p>
+        <ul><li><b>Filter by source.</b> All, TESS, Kepler, K2, Synthetic or Upload.</li><li><b>Search</b> by name or TIC id.</li><li><b>Columns.</b> Mission, effective temperature, stellar radius and mass, V magnitude, number of runs, latest period, latest radius and latest disposition.</li><li><b>Open a row</b> to see the star's own page.</li></ul>
+      </div>
+    </section>
+    <div class="footer-strip"><span>Chronos Transit Engine</span><span>12 / 31 — Every host star in the archive</span></div>
+  </div>
+
+  <div class="page section-page">
+    <section class="scene web">
+      <div class="scene-media"><div class="browser-frame"><div class="browser-bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="browser-url">localhost:8765/targets/720/</span></div><img src="file:///Users/surenjanath/Desktop/AI Projects/NASA/walkthrough/screenshots/13_target.png" /></div></div>
+      <div class="scene-copy">
+        <div class="scene-num">13 / 31</div>
+        <div class="kicker">Targets · one star</div>
+        <h2>One star, in context</h2>
+        <p class="lead">A target page puts one star in context: what the engine last measured on it, what the catalogue says about the star, and how far away it is in human terms.</p>
+        <ul><li><b>Latest result.</b> Period, depth, radius, planet probability and disposition.</li><li><b>The star.</b> Temperature, radius, mass, V magnitude, sky position and when it was first ingested.</li><li><b>Distance.</b> WASP-12 is 1,393.5 light-years from Earth; the light seen tonight left in the year 633, and Voyager 1 would arrive in 24.6 million years.</li><li><b>Runs for this target.</b> Every analysis of this star, with a link to its place on the map.</li></ul>
+      </div>
+    </section>
+    <div class="footer-strip"><span>Chronos Transit Engine</span><span>13 / 31 — One star, in context</span></div>
+  </div>
+
+  <div class="page section-page">
+    <section class="scene web">
+      <div class="scene-media"><div class="browser-frame"><div class="browser-bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="browser-url">localhost:8765/runs/</span></div><img src="file:///Users/surenjanath/Desktop/AI Projects/NASA/walkthrough/screenshots/14_runs.png" /></div></div>
+      <div class="scene-copy">
+        <div class="scene-num">14 / 31</div>
+        <div class="kicker">Runs · pipeline ledger</div>
+        <h2>The pipeline ledger</h2>
+        <p class="lead">The runs page is the complete ledger of the pipeline's work: every run, its measurements, its status and its verdict.</p>
+        <ul><li><b>Counters.</b> Active now, completed, failed, and median runtime.</li><li><b>Filter.</b> All, Completed, Running or Failed; narrow further by disposition, or search by target or run id.</li><li><b>Columns.</b> Period, depth, radius, planet probability, number of diagnostic flags, status, disposition and vetting decision.</li><li><b>Download CSV</b> exports the ledger; <b>+ New analysis</b> starts another run.</li></ul>
+      </div>
+    </section>
+    <div class="footer-strip"><span>Chronos Transit Engine</span><span>14 / 31 — The pipeline ledger</span></div>
+  </div>
+
+  <div class="page section-page">
+    <section class="scene web">
+      <div class="scene-media"><div class="browser-frame"><div class="browser-bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="browser-url">localhost:8765/vetting/</span></div><img src="file:///Users/surenjanath/Desktop/AI Projects/NASA/walkthrough/screenshots/15_vetting.png" /></div></div>
+      <div class="scene-copy">
+        <div class="scene-num">15 / 31</div>
+        <div class="kicker">Vetting · human review</div>
+        <h2>A human makes the final call</h2>
+        <p class="lead">The engine never has the last word. Signals with a planet probability above the queue threshold and no high-severity flag arrive here for a person to decide.</p>
+        <ul><li><b>Three tabs.</b> Awaiting decision, Confirmed and False positives.</li><li><b>Each row</b> shows the period, depth, radius, planet probability, flag count and disposition (Vetting queue or Manual review).</li><li><b>Confirm</b> or <b>False positive</b> records the decision against the run and in its audit trail.</li><li><b>Export candidates CSV</b> produces the list for citizen-science or follow-up use.</li><li>The vetting-queue triangle beside every page shows the current queue size and links here.</li></ul>
+      </div>
+    </section>
+    <div class="footer-strip"><span>Chronos Transit Engine</span><span>15 / 31 — A human makes the final call</span></div>
+  </div>
+
+  <div class="page section-page">
+    <section class="scene web">
+      <div class="scene-media"><div class="browser-frame"><div class="browser-bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="browser-url">localhost:8765/atlas/</span></div><img src="file:///Users/surenjanath/Desktop/AI Projects/NASA/walkthrough/screenshots/16_atlas.png" /></div></div>
+      <div class="scene-copy">
+        <div class="scene-num">16 / 31</div>
+        <div class="kicker">Atlas · the known population</div>
+        <h2>Detections among the known planets</h2>
+        <p class="lead">The atlas plots the engine's detections against the population of planets already known, by orbital period and radius, both on logarithmic axes.</p>
+        <ul><li><b>Faint points.</b> The 4,720 confirmed transiting planets in the NASA Exoplanet Archive.</li><li><b>Engine results.</b> Planet candidates, eclipsing binaries and signals needing review are drawn on top.</li><li><b>Reading the diagram.</b> Upper left: hot Jupiters. Middle band: sub-Neptunes and super-Earths, the most common planets known. Above 25 R⊕: too large for a planet. The gap near 1.8 R⊕ is the radius valley between rocky and gas-rich planets.</li><li><b>Detections.</b> A table of the transit-like signals, smallest first, sits below the diagram.</li></ul>
+      </div>
+    </section>
+    <div class="footer-strip"><span>Chronos Transit Engine</span><span>16 / 31 — Detections among the known planets</span></div>
+  </div>
+
+  <div class="page section-page">
+    <section class="scene web">
+      <div class="scene-media"><div class="browser-frame"><div class="browser-bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="browser-url">localhost:8765/map/</span></div><img src="file:///Users/surenjanath/Desktop/AI Projects/NASA/walkthrough/screenshots/17_map_solar.png" /></div></div>
+      <div class="scene-copy">
+        <div class="scene-num">17 / 31</div>
+        <div class="kicker">Map · you are here</div>
+        <h2>The map begins at home</h2>
+        <p class="lead">The map is a pannable, zoomable picture of real space. Every host star is placed from its measured sky position and distance in the NASA Exoplanet Archive; nothing is invented. It opens on the Solar System, to scale.</p>
+        <ul><li><b>Three viewpoints.</b> Galaxy from above, Galaxy edge-on, and Sky from Earth.</li><li><b>Go to.</b> Earth's orbit, Solar System, Voyager 1, Nearest stars, Kepler's field and Whole Galaxy.</li><li><b>Find a star or planet</b> by name.</li><li><b>The readout</b> under the map says how wide the view is, how long light takes to cross it, and how long Voyager 1 would need.</li><li><b>Refresh from archive</b> updates the catalogue copy (6,417 planets in 4,814 systems here).</li></ul>
+      </div>
+    </section>
+    <div class="footer-strip"><span>Chronos Transit Engine</span><span>17 / 31 — The map begins at home</span></div>
+  </div>
+
+  <div class="page section-page">
+    <section class="scene web">
+      <div class="scene-media"><div class="browser-frame"><div class="browser-bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="browser-url">localhost:8765/map/</span></div><img src="file:///Users/surenjanath/Desktop/AI Projects/NASA/walkthrough/screenshots/18_map_neighbourhood.png" /></div></div>
+      <div class="scene-copy">
+        <div class="scene-num">18 / 31</div>
+        <div class="kicker">Map · the nearest stars</div>
+        <h2>The neighbourhood, and how far it really is</h2>
+        <p class="lead">Select any star and the panel explains its distance in terms a person can picture. TRAPPIST-1 is shown here among the stars within a few tens of light-years.</p>
+        <ul><li><b>Distance from Earth.</b> 40.5 light-years; the light seen tonight left in 1985.</li><li><b>Travel times.</b> Voyager 1: 717,000 years. Parker Solar Probe at its fastest: 63,300 years. An airliner: 48.6 million years.</li><li><b>The star.</b> Spectral type, temperature, radius, brightness, sky position and discovery method.</li><li><b>Its planets.</b> All seven, with radius, period and orbit size.</li><li><b>Travel there from Earth</b> animates the whole way out.</li></ul>
+      </div>
+    </section>
+    <div class="footer-strip"><span>Chronos Transit Engine</span><span>18 / 31 — The neighbourhood, and how far it really is</span></div>
+  </div>
+
+  <div class="page section-page">
+    <section class="scene web">
+      <div class="scene-media"><div class="browser-frame"><div class="browser-bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="browser-url">localhost:8765/map/</span></div><img src="file:///Users/surenjanath/Desktop/AI Projects/NASA/walkthrough/screenshots/19_map_trappist.png" /></div></div>
+      <div class="scene-copy">
+        <div class="scene-num">19 / 31</div>
+        <div class="kicker">Map · a system up close</div>
+        <h2>Seven orbits and a liquid-water zone</h2>
+        <p class="lead">Zoom all the way in and a star's orbits are drawn to scale with its liquid-water zone shaded. TRAPPIST-1's seven orbits would fit well inside Mercury's.</p>
+        <ul><li><b>Scale.</b> This view is 0.224 AU across; light crosses it in 112 seconds.</li><li><b>Liquid-water zone.</b> The band where a planet receives enough starlight for liquid water.</li><li><b>Honest limits.</b> Orbits are drawn to scale in size but face-on, and planets are not placed along them, because orientation and present position are not in the catalogue.</li></ul>
+      </div>
+    </section>
+    <div class="footer-strip"><span>Chronos Transit Engine</span><span>19 / 31 — Seven orbits and a liquid-water zone</span></div>
+  </div>
+
+  <div class="page section-page">
+    <section class="scene web">
+      <div class="scene-media"><div class="browser-frame"><div class="browser-bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="browser-url">localhost:8765/map/</span></div><img src="file:///Users/surenjanath/Desktop/AI Projects/NASA/walkthrough/screenshots/20_map_galaxy.png" /></div></div>
+      <div class="scene-copy">
+        <div class="scene-num">20 / 31</div>
+        <div class="kicker">Map · the whole Galaxy</div>
+        <h2>Every known planetary system</h2>
+        <p class="lead">Zoomed out to 170,000 light-years, all 4,814 known planetary systems occupy a small patch around the Sun. The shape of that patch is the shape of where we have looked.</p>
+        <ul><li><b>The spike</b> is the Kepler telescope's field of view.</li><li><b>The streak</b> towards the Galactic centre (26,670 light-years away) is microlensing discoveries.</li><li><b>The Sun's path</b> around the Galaxy is drawn too; one lap takes about 230 million years.</li><li>Stars analysed by this engine are highlighted, and target and run pages link to their place here.</li></ul>
+      </div>
+    </section>
+    <div class="footer-strip"><span>Chronos Transit Engine</span><span>20 / 31 — Every known planetary system</span></div>
+  </div>
+
+  <div class="page section-page">
+    <section class="scene web">
+      <div class="scene-media"><div class="browser-frame"><div class="browser-bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="browser-url">localhost:8765/map/</span></div><img src="file:///Users/surenjanath/Desktop/AI Projects/NASA/walkthrough/screenshots/21_map_sky.png" /></div></div>
+      <div class="scene-copy">
+        <div class="scene-num">21 / 31</div>
+        <div class="kicker">Map · the sky from Earth</div>
+        <h2>The sky as seen from Earth</h2>
+        <p class="lead">The third viewpoint lays the same systems out on the sky as seen from Earth, 360 degrees wide.</p>
+        <ul><li><b>Kepler's field of view</b> appears as a dense patch; the Galactic centre is another.</li><li><b>Red points</b> are stars analysed by this engine.</li><li><b>Show filters.</b> All, Transit, Radial velocity, Microlensing, Imaging or Other methods; further filters select small planets, temperate planets and naked-eye stars.</li><li><b>The readout</b> compares the view with the width of the full Moon.</li></ul>
+      </div>
+    </section>
+    <div class="footer-strip"><span>Chronos Transit Engine</span><span>21 / 31 — The sky as seen from Earth</span></div>
+  </div>
+
+  <div class="page section-page">
+    <section class="scene web">
+      <div class="scene-media"><div class="browser-frame"><div class="browser-bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="browser-url">localhost:8765/benchmark/</span></div><img src="file:///Users/surenjanath/Desktop/AI Projects/NASA/walkthrough/screenshots/22_benchmark.png" /></div></div>
+      <div class="scene-copy">
+        <div class="scene-num">22 / 31</div>
+        <div class="kicker">Benchmark · real stars with known answers</div>
+        <h2>Scored on real stars it never saw</h2>
+        <p class="lead">The benchmark page scores the classifier on real Kepler stars labelled by the Kepler Science Office: planet candidates, astrophysical false positives and non-transiting phenomena. A fifth of the stars are held out and never used for training.</p>
+        <ul><li><b>The data.</b> 990 real stars, 330 per class; 802 used for training, 188 held out. A star's split is fixed by its KIC number.</li><li><b>CNN ensemble alone.</b> Planet-versus-rest AUC 0.982, PR-AUC 0.966, 90.4% three-class accuracy.</li><li><b>With the second stage</b> (what every run reports): AUC 0.985, PR-AUC 0.973, 91.0% accurate.</li><li><b>Targets.</b> AUC at least 0.96 and PR-AUC at least 0.88.</li><li><b>ROC curves</b> and a confusion matrix show where the mistakes fall.</li></ul>
+      </div>
+    </section>
+    <div class="footer-strip"><span>Chronos Transit Engine</span><span>22 / 31 — Scored on real stars it never saw</span></div>
+  </div>
+
+  <div class="page section-page">
+    <section class="scene web">
+      <div class="scene-media"><div class="browser-frame"><div class="browser-bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="browser-url">localhost:8765/benchmark/</span></div><img src="file:///Users/surenjanath/Desktop/AI Projects/NASA/walkthrough/screenshots/23_benchmark_injection.png" /></div></div>
+      <div class="scene-copy">
+        <div class="scene-num">23 / 31</div>
+        <div class="kicker">Benchmark · injection and recovery</div>
+        <h2>Injection and recovery</h2>
+        <p class="lead">Injection and recovery measures completeness: limb-darkened transits of known period and depth are injected into quiet real Kepler stars and run blind through the whole pipeline.</p>
+        <ul><li><b>From S/N 10:</b> 98% recovered.</li><li><b>At the 7.1 detection threshold:</b> 50%.</li><li><b>Below S/N 4.5:</b> 4%, which should be near zero and is the false-alarm floor.</li><li><b>The table</b> lists, for each injected S/N, how many periods were found, detected and called planet.</li><li>On variable stars the further-signal search recovered 46 of 48 planets injected behind the star's own signal.</li></ul>
+      </div>
+    </section>
+    <div class="footer-strip"><span>Chronos Transit Engine</span><span>23 / 31 — Injection and recovery</span></div>
+  </div>
+
+  <div class="page section-page">
+    <section class="scene web">
+      <div class="scene-media"><div class="browser-frame"><div class="browser-bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="browser-url">localhost:8765/benchmark/</span></div><img src="file:///Users/surenjanath/Desktop/AI Projects/NASA/walkthrough/screenshots/24_benchmark_blind.png" /></div></div>
+      <div class="scene-copy">
+        <div class="scene-num">24 / 31</div>
+        <div class="kicker">Benchmark · blind end-to-end runs</div>
+        <h2>Blind, end to end</h2>
+        <p class="lead">In a blind run the pipeline is given only the photometry of held-out stars. It must find the period itself, derive the parameters and classify. Run blind benchmark queues more of the held-out stars.</p>
+        <ul><li><b>Stars run:</b> 90. Class agrees with the archive label on 86%.</li><li><b>Period recovered:</b> 55 of 60 exactly, plus 2 at a 1:2 alias.</li><li><b>Real planets called planet:</b> 29 of 30, with 20 reaching the vetting queue.</li><li><b>False positives queued:</b> 2 of 60. One of them, TCE 6851425-1, carries an outdated label: NASA's current catalogue lists it as the confirmed planet Kepler-477 b.</li><li><b>Below.</b> Measured against catalogued period, the distribution of planet probability by true class, the confusion matrix, and every star with its result.</li></ul>
+      </div>
+    </section>
+    <div class="footer-strip"><span>Chronos Transit Engine</span><span>24 / 31 — Blind, end to end</span></div>
+  </div>
+
+  <div class="page section-page">
+    <section class="scene web">
+      <div class="scene-media"><div class="browser-frame"><div class="browser-bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="browser-url">localhost:8765/validation/</span></div><img src="file:///Users/surenjanath/Desktop/AI Projects/NASA/walkthrough/screenshots/25_validation.png" /></div></div>
+      <div class="scene-copy">
+        <div class="scene-num">25 / 31</div>
+        <div class="kicker">Validation · acceptance criteria</div>
+        <h2>Checked against its acceptance criteria</h2>
+        <p class="lead">Validation runs the verification suite against the system's written acceptance criteria and reports each result with the measured value beside the tolerance.</p>
+        <ul><li><b>BLS period recovery.</b> Maximum error 4.6 × 10<sup>−5</sup> against a limit of 10<sup>−4</sup>.</li><li><b>Transit depth</b> within 3.25% (limit 5%); <b>radius</b> within 3.78% of NASA Exoplanet Archive values.</li><li><b>Classification accuracy</b> on held-out Kepler stars, and <b>structured log integrity</b>: every record valid, hash chains intact.</li><li><b>Extended checks.</b> Physics sanity, golden targets, and injection and recovery.</li><li><b>The one miss.</b> 11 of 12 golden-target assertions hold. WASP-12 b scores 0.942, under the 0.95 golden-target bar, though it still reaches the vetting queue.</li><li><b>Run verification suite</b> repeats the checks on demand.</li></ul>
+      </div>
+    </section>
+    <div class="footer-strip"><span>Chronos Transit Engine</span><span>25 / 31 — Checked against its acceptance criteria</span></div>
+  </div>
+
+  <div class="page section-page">
+    <section class="scene web">
+      <div class="scene-media"><div class="browser-frame"><div class="browser-bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="browser-url">localhost:8765/automation/</span></div><img src="file:///Users/surenjanath/Desktop/AI Projects/NASA/walkthrough/screenshots/26_automation.png" /></div></div>
+      <div class="scene-copy">
+        <div class="scene-num">26 / 31</div>
+        <div class="kicker">Automation · champion and challenger</div>
+        <h2>New data in, better model out</h2>
+        <p class="lead">Automation runs cycles on a schedule so the engine keeps pulling new data and learning from it. It is off by default and can be started by hand with Run a cycle now.</p>
+        <ul><li><b>New targets.</b> The newest TESS Objects of Interest not yet in the catalogue are fetched from MAST and run through the full pipeline.</li><li><b>New labels.</b> More Kepler stars with settled archive dispositions are downloaded into the training and held-out sets.</li><li><b>Retraining.</b> Once enough new stars arrive the classifier is retrained. The new model replaces the active one only if it scores no worse on the fixed held-out real stars.</li><li><b>Schedule.</b> Minutes between cycles, new TOIs per cycle, new labelled stars per cycle, and how many new stars trigger a retrain.</li><li><b>Model versions.</b> Every training run, accepted or not, with its AUC on real and simulated data.</li><li>For unattended use without the web server: <code>python manage.py autopilot --loop</code>.</li></ul>
+      </div>
+    </section>
+    <div class="footer-strip"><span>Chronos Transit Engine</span><span>26 / 31 — New data in, better model out</span></div>
+  </div>
+
+  <div class="page section-page">
+    <section class="scene web">
+      <div class="scene-media"><div class="browser-frame"><div class="browser-bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="browser-url">localhost:8765/logs/</span></div><img src="file:///Users/surenjanath/Desktop/AI Projects/NASA/walkthrough/screenshots/27_logs.png" /></div></div>
+      <div class="scene-copy">
+        <div class="scene-num">27 / 31</div>
+        <div class="kicker">Audit log · all runs</div>
+        <h2>Every stage of every run</h2>
+        <p class="lead">The audit log gathers the structured telemetry from every mathematical stage of every run into one searchable table.</p>
+        <ul><li><b>Filter by level.</b> All, Info, Warning or Error, with running totals.</li><li><b>Filter by stage</b> or search the message text.</li><li><b>Each record</b> carries its UTC timestamp, level, stage, message and run id.</li><li><b>Download JSONL</b> exports the complete log.</li></ul>
+      </div>
+    </section>
+    <div class="footer-strip"><span>Chronos Transit Engine</span><span>27 / 31 — Every stage of every run</span></div>
+  </div>
+
+  <div class="page section-page">
+    <section class="scene web">
+      <div class="scene-media"><div class="browser-frame"><div class="browser-bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="browser-url">localhost:8765/calculator/</span></div><img src="file:///Users/surenjanath/Desktop/AI Projects/NASA/walkthrough/screenshots/28_calculator.png" /></div></div>
+      <div class="scene-copy">
+        <div class="scene-num">28 / 31</div>
+        <div class="kicker">Calculator · interactive vetting tool</div>
+        <h2>Work the physics by hand</h2>
+        <p class="lead">The calculator applies the engine's physics to numbers you choose, with the result drawn to scale as you change them.</p>
+        <ul><li><b>Presets.</b> HD 209458 b, WASP-12 b, TRAPPIST-1 e and Earth–Sun.</li><li><b>Inputs.</b> Stellar radius, mass and temperature, orbital period, transit depth, impact parameter and Bond albedo.</li><li><b>Outputs.</b> Planet radius, radius ratio, semi-major axis, transit duration, equilibrium temperature and insolation relative to Earth.</li><li><b>Visual model.</b> The same sky view, orbit and light curve used on run pages.</li><li><b>Record to audit log</b> saves a calculation alongside the pipeline's own records.</li></ul>
+      </div>
+    </section>
+    <div class="footer-strip"><span>Chronos Transit Engine</span><span>28 / 31 — Work the physics by hand</span></div>
+  </div>
+
+  <div class="page section-page">
+    <section class="scene web">
+      <div class="scene-media"><div class="browser-frame"><div class="browser-bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="browser-url">localhost:8765/settings/</span></div><img src="file:///Users/surenjanath/Desktop/AI Projects/NASA/walkthrough/screenshots/.redacted/29_settings.png" /></div></div>
+      <div class="scene-copy">
+        <div class="scene-num">29 / 31</div>
+        <div class="kicker">Settings · pipeline defaults</div>
+        <h2>Pipeline defaults in one place</h2>
+        <p class="lead">Settings holds the defaults applied to every new analysis. Each field shows its meaning and its original default; Restore PRD defaults puts everything back.</p>
+        <ul><li><b>Cleaning.</b> Sigma-clip threshold and window, detrend window and polynomial order.</li><li><b>Search.</b> Minimum and maximum period, minimum and maximum duty cycle, and BLS oversampling.</li><li><b>Physics and decisions.</b> Impact parameter, Bond albedo, the SDE flag threshold, and the queue confidence a signal needs to be auto-queued for vetting (0.9).</li><li><b>Acceptance tolerances</b> are fixed and shown read-only.</li><li><b>System.</b> The relational archive (SQLite or PostgreSQL), the columnar archive (Parquet), the telemetry format and the data directory.</li></ul>
+      </div>
+    </section>
+    <div class="footer-strip"><span>Chronos Transit Engine</span><span>29 / 31 — Pipeline defaults in one place</span></div>
+  </div>
+
+  <div class="page section-page">
+    <section class="scene web">
+      <div class="scene-media"><div class="browser-frame"><div class="browser-bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="browser-url">localhost:8765/method/</span></div><img src="file:///Users/surenjanath/Desktop/AI Projects/NASA/walkthrough/screenshots/30_method.png" /></div></div>
+      <div class="scene-copy">
+        <div class="scene-num">30 / 31</div>
+        <div class="kicker">Method · from photometry to vetted candidate</div>
+        <h2>The mathematics, written out</h2>
+        <p class="lead">The method page documents the pipeline in full, with the formula for each stage typeset and the parameters used.</p>
+        <ul><li><b>Stages.</b> Normalisation and outlier rejection, Savitzky-Golay detrending, Box Least Squares, and the physical parameters.</li><li><b>Dispositions.</b> Vetting queue, Manual review, FP suspect, Eclipsing binary, Noise and No signal, each defined.</li><li><b>Diagnostic flags.</b> Every flag the engine can raise, such as LOW_SNR, LOW_SDE and FEW_TRANSITS, with what triggers it.</li><li><b>Plots.</b> How to read each plot that appears on a run page.</li></ul>
+      </div>
+    </section>
+    <div class="footer-strip"><span>Chronos Transit Engine</span><span>30 / 31 — The mathematics, written out</span></div>
+  </div>
+
+  <div class="page section-page">
+    <section class="scene web text-only">
+      
+      <div class="scene-copy">
+        <div class="scene-num">31 / 31</div>
+        <div class="kicker">In summary</div>
+        <h2>From starlight to a vetted candidate</h2>
+        <p class="lead">Chronos Transit Engine takes raw starlight to a measured planet, a decision you can audit, and a place on the map. It is candid about what it cannot yet do.</p>
+        <ul><li><b>No confirmed new planet.</b> Across the real stars analysed, every signal sent to the vetting queue is a NASA-confirmed planet except KOI-143.01. Confirming a planet takes independent follow-up.</li><li><b>Variable stars.</b> Two of 48 injected planets are still missed, and 2 of 45 variable stars get a spurious extra signal. Additional signals are candidates for inspection.</li><li><b>Speed.</b> A four-year Kepler star takes 40 to 190 seconds end to end; a 27-day TESS sector takes a few seconds.</li><li><b>The map.</b> Orbits are drawn face-on, and 28 planets with no measured distance are left off.</li><li><b>Useful commands.</b> <code>manage.py seed</code>, <code>build_kepler_dataset</code>, <code>train_model</code>, <code>benchmark</code>, <code>injection_study</code>, <code>autopilot</code>, <code>verify</code>.</li></ul>
+      </div>
+    </section>
+    <div class="footer-strip"><span>Chronos Transit Engine</span><span>31 / 31 — From starlight to a vetted candidate</span></div>
+  </div>
+
+  <div class="page closing">
+    <div class="mark small"><img src="file:///Users/surenjanath/Desktop/AI Projects/NASA/walkthrough/assets/logo.png" /></div>
+    <h2>Thank you</h2>
+    <p>This guide covered every page of Chronos Transit Engine: starting an analysis, reading a run from verdict to audit trail, human vetting, the atlas and the map, the benchmarks that score the system on real stars, and the automation, settings and method behind it.</p>
+    <div class="tag">Finds planets in starlight</div>
+  </div>
+
+</body>
+</html>
