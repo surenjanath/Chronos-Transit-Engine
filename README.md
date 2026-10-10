@@ -7,12 +7,14 @@ on a map that runs from Earth's orbit to the whole Galaxy.
 
 One Django project: server-rendered pages, the science pipeline, and the archive. Built to [`prd.md`](prd.md).
 
+**Paper:** [how the classifier works and how it was measured](docs/paper.md) (AUC 0.997 on 1,515 held-out Kepler stars).
+
 ![The map, zoomed to the stars within 25 light-years, with TRAPPIST-1 selected](docs/screenshots/map-neighbourhood.png)
 
 ## Contents
 
 - [What it does](#what-it-does) · [Screenshots](#screenshots) · [Run it](#run) · [Measured results](#measured-results)
-- [Real data](#real-data) · [Map](#map) · [Automation](#automation) · [How the analysis works](#analysis-beyond-the-prd-formulae)
+- [Signal check](#signal-check) · [Getting the trained model](#getting-the-trained-model) · [Real data](#real-data) · [Map](#map) · [Automation](#automation) · [How the analysis works](#analysis-beyond-the-prd-formulae)
 - [Layout](#layout) · [Pipeline](#pipeline) · [Configuration](#configuration) · [Known limits](#known-limits) · [Notes on the PRD](#notes-on-the-prd)
 
 ## What it does
@@ -24,7 +26,8 @@ One Django project: server-rendered pages, the science pipeline, and the archive
 | **Search** | Box Least Squares over 0.5–30 days on all CPU cores, with period-alias correction. |
 | **Measure** | Period, depth, duration, planet radius (with a limb-darkened fit and 1σ errors), orbit size, temperature. |
 | **Vet** | Odd/even depth, secondary eclipse at any orbital phase, centroid motion, V-shape, radius, duration. |
-| **Classify** | A five-network ensemble of dual-branch 1D-CNNs plus a second stage that weighs the vetting evidence. |
+| **Classify** | A five-network ensemble of dual-branch 1D-CNNs plus a second stage of boosted trees that weighs the vetting evidence. |
+| **Signal check** | Type in a period, depth and duration (and whatever else is known) and get a verdict without a light curve; or upload a table of signals. |
 | **Look further** | Removes each signal and the star's own variability, then searches again for more planets. |
 | **Check itself** | Blind benchmark on held-out real stars, injection-and-recovery, golden targets, PRD acceptance criteria. |
 | **Locate** | A zoomable map of 4,800 real planetary systems, with distances and travel times from Earth. |
@@ -89,22 +92,35 @@ All commands:
 .venv/bin/python manage.py autopilot               # one automation cycle (--loop to keep going)
 .venv/bin/python manage.py verify                  # PRD §6 criteria + physics, golden targets, injections
 .venv/bin/python manage.py reset_runs --yes        # clear runs, logs and archives
-.venv/bin/python -m pytest                         # 33 tests; set CTE_TEST_DATABASE_URL to run them on PostgreSQL
+.venv/bin/python -m pytest                         # 34 tests; set CTE_TEST_DATABASE_URL to run them on PostgreSQL
 ```
 
 ## Measured results
 
 Everything here was measured on real photometry; nothing is simulated except where it says so.
 
-**Classifier, on 188 held-out real Kepler stars** (never trained on; labels from the Kepler Science Office)
+**Classifier, on 1,515 held-out real Kepler stars** (never trained on; labels from the Kepler Science Office,
+updated where NASA has since confirmed a planet or ruled a signal a false positive)
 
 | | AUC (planet vs rest) | PR-AUC | 3-class accuracy |
 |---|---|---|---|
-| CNN ensemble alone | 0.982 | 0.966 | 90% |
-| With the second stage (what a run reports) | 0.985 | 0.973 | 91% |
+| CNN ensemble alone | 0.973 | 0.918 | 78% |
+| With the second stage (what a run reports) | 0.997 | 0.993 | 83% |
 
-PRD floor: AUC 0.96, PR-AUC 0.88. Training set: 30,000 simulated signals plus 802 real stars (3,201 real examples:
-each training star is seen through three independent stretches of the four-year mission and once whole).
+| With the second stage | |
+|---|---|
+| Planets called planets | 411 of 421 (97.6%) |
+| ...of which NASA-confirmed planets | 330 of 331 (99.7%) |
+| Planets sent straight to the vetting queue (P ≥ 0.9) | 393 of 421 (93.3%) |
+| Other signals kept out of the vetting queue | 1,087 of 1,094 (99.4%) |
+
+Nine of the ten planets not called planets are candidates NASA has not confirmed; three of the seven other signals
+that reach the queue are ones NASA now lists as candidates. The second stage also uses Kepler's pixel data: the
+position of the dimming on the detector during transit, compared with the position of the star.
+
+Most three-class disagreements are between "binary" and "noise" for weak signals; both are "not a planet".
+PRD floor: AUC 0.96, PR-AUC 0.88. Training set: 30,000 simulated signals plus 5,981 real stars (37,850 real examples:
+every labelled signal on a star, each seen through three independent stretches of the four-year mission and once whole).
 
 **Blind benchmark, 90 held-out stars** (the pipeline gets only the photometry and must find the period itself)
 
@@ -116,7 +132,10 @@ each training star is seen through three independent stretches of the four-year 
 | Class agrees with the catalogue label | 86% |
 | Planet-vs-rest AUC | 0.982 |
 
-The second 45 stars were run on the final code; the first 45 on the code as it stood two small tuning changes earlier.
+The second 45 stars were run on the final code of that model; the first 45 on the code as it stood two small tuning changes earlier.
+These 90 stars predate the current classifier. On the 43 held-out stars run blind since it was trained: 13 of 14 planets
+called planets, 0 of 29 other signals sent to the vetting queue, period found exactly for 19 of 28 (plus 3 at half the period),
+class agrees with the label for 84%.
 
 **Injection and recovery** (Mandel-Agol transits from `batman` injected into real stars)
 
@@ -129,8 +148,8 @@ The second 45 stars were run on the final code; the first 45 on the code as it s
 | Variable stars, nothing injected: stars given a spurious extra signal | 2 of 45 |
 
 **PRD acceptance criteria** (`manage.py verify`): period error 4.6 × 10⁻⁵ (limit 10⁻⁴), depth 3.25% (limit 5%), radius
-3.78% (limit 5%), log integrity 100%. **Golden targets**: 11 of 12 assertions hold, including all six TRAPPIST-1
-planets b–g; the one miss is listed under [Known limits](#known-limits).
+3.78% (limit 5%), log integrity 100%. **Golden targets**: 12 of 12 assertions hold, including all six TRAPPIST-1
+planets b–g.
 
 **Has it found a planet NASA does not have?** No confirmed new planet. Across the 96 real stars analysed:
 every signal it sent to the vetting queue is a NASA-confirmed planet except KOI-143.01 (see Known limits). One star
@@ -141,6 +160,30 @@ the likely cause. The fifth is the confirmed host Kepler-1772: a 28.35-day, 47 p
 detection minimum. That one is a candidate worth a second look, nothing more: confirming a planet takes
 independent follow-up.
 
+## Signal check
+
+`/check/` answers "is it a planet?" for a signal you only have numbers for. Enter a period, depth and duration;
+add the signal-to-noise, the number of transits, the star, the odd/even difference, the secondary eclipse and the
+centroid shift if you know them. The page returns the three class probabilities, plain-language warnings (a body
+too large to be a planet, a secondary eclipse too deep, a dip that lasts too long for the star), what each
+optional input did to the answer, and the size and orbit the numbers imply.
+
+![Signal check](docs/screenshots/signal-check.png)
+
+- **Its own model.** Boosted trees fitted on the same Kepler training stars as the main classifier
+  (`manage.py train_signal_check`), with optional inputs withheld at random during fitting so a blank field is
+  something it has seen.
+- **Measured on the same 1,515 held-out stars.** Planet-or-not is right for 95.6% with every input given (AUC 0.989),
+  90.5% with period, depth, duration and the star, and 87.3% from period, depth and duration alone. The page shows this table.
+- **Many at once.** Upload a CSV (NASA's KOI and TCE table exports work as they are) and get it back with a verdict per row.
+- **JSON.** `GET /check/score.json?period_days=…&depth_ppm=…&duration_hours=…`
+- It is a first look. It has seen Kepler signals only, and the full analysis of the light curve is more accurate.
+
+## Getting the trained model
+
+The trained model files are not in this repository. To request them, open an issue. Everything needed to train
+your own is here: `build_kepler_dataset`, `train_model`, `train_signal_check` (see the [paper](docs/paper.md)).
+
 ## Real data
 
 - **MAST runs.** Any TESS / Kepler / K2 target by name or id; several at once with commas. Each run is cross-matched
@@ -148,7 +191,9 @@ independent follow-up.
   Every archive call has a timeout and one retry.
 - **Kepler TCE benchmark.** `build_kepler_dataset` downloads long-cadence photometry (all seventeen quarters, about four
   years, 16 on average per star) for a class-balanced sample from the Kepler DR24 TCE table (Q1–Q17) with the Science Office labels PC / AFP / NTP - the
-  ground truth AstroNet was scored on. Planets and binaries are included only when detectable (expected S/N ≥ 10 in six
+  ground truth AstroNet was scored on - plus every other labelled star whose photometry is already on disk. Every labelled
+  signal on a star is used, and a 2015 label is replaced where NASA's current KOI table has since confirmed the planet or
+  ruled the signal a false positive. Planets and binaries are included only when detectable (expected S/N ≥ 10 in six
   quarters). A quarter the archive fails to answer for is asked for again, never recorded as "not observed". A star's train / held-out split is fixed by its KIC number.
 - **Training.** `train_model` mixes the real training stars into the simulated population and reports AUC and PR-AUC
   on the held-out real stars. Every training run is recorded in `data/models/history.json`.
@@ -189,9 +234,12 @@ It is off by default. Each cycle and each training run is logged and listed on t
   training stars. The second stage is fitted on predictions for stars the predicting network never saw; fitted on
   memorised stars it would learn to trust the network too much. The local CNN branch sees four channels: all
   transits, odd, even, and the window half an orbit later.
-- **Second-stage classifier.** An ensemble of small networks combines the CNN probabilities with the vetting
-  evidence (odd/even, secondary eclipse too deep for a planet, centroid, radius beyond 2 R_J, duration); it is fitted
-  on the real training stars plus simulated giant planets and binaries, and its answer is what every run reports.
+- **Second-stage classifier.** Gradient-boosted trees (five seeds, averaged) combine the CNN probabilities with the
+  vetting evidence (odd/even, secondary eclipse too deep for a planet, centroid, radius beyond 2 R_J, duration) and
+  forty further measurements of the light curve: brightness changes in step with the orbit (reflection, beaming,
+  ellipsoidal distortion), depth from one observing season to the next and from transit to transit, transit shape and
+  symmetry, and the star's temperature, size and density. It is fitted on the real training stars plus simulated giant
+  planets and binaries, with the three classes weighted equally, and its answer is what every run reports.
 - **K2.** Systematics-corrected community light curves (EVEREST, K2SFF) are preferred over the raw pipeline product.
 - **Shape-derived geometry and stellar density**, compared with the catalogued star.
 - **Vetting flags.** Odd/even depth (3σ and a 10% depth difference), secondary eclipse at phase 0.5, V-shape,
@@ -280,8 +328,6 @@ residuals are white) and `remove_periodic_variability` (divide out a non-transit
 
 ## Known limits
 
-- **WASP-12 b scores 0.942, under the 0.95 golden-target bar** (it is still sent to the vetting queue, which needs
-  0.90). Its transit is long for its orbit and the shape-only network gives it 0.59; the second stage lifts it.
 - **Kepler-8 b sits in manual review at 0.899, a hair under the 0.90 queue threshold.** Among real Kepler signals
   deeper than 0.5% the sample holds 159 false positives and 22 planets, so a deep, high-impact transit is
   ambiguous on shape alone (the network gives it 0.25). Review is the calibrated answer, not a bug.
