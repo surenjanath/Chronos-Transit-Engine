@@ -183,3 +183,5 @@ def test_survey_matches_catalogued_periods_and_their_aliases():
     assert match(4.5412, listed) == "Kepler-1301 b (CONFIRMED) at 0.5x its period"
     assert match(5.5066, listed) == "TCE 7908893-1 (NTP) at 2x its period"
     assert match(28.464, listed) is None and match(3.0, []) is None
+    assert match(5.9844, [(29.9218, "Kepler-1676 b (CONFIRMED)")]) == "Kepler-1676 b (CONFIRMED) at 1/5 of its period"
+    assert match(6.05, [(29.9218, "Kepler-1676 b (CONFIRMED)")]) is None

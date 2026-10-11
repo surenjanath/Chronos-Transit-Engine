@@ -13,10 +13,11 @@ class Command(BaseCommand):
         parser.add_argument("--kepids", type=str, default="", help="comma-separated KIC numbers (default: every star of the dataset)")
         parser.add_argument("--limit", type=int, default=None, help="survey at most this many stars not yet done")
         parser.add_argument("--workers", type=int, default=4, help="stars analysed side by side")
+        parser.add_argument("--summary", action="store_true", help="analyse nothing; match what is already surveyed against NASA's tables again")
 
-    def handle(self, *args, kepids, limit, workers, **options):
+    def handle(self, *args, kepids, limit, workers, summary, **options):
         ids = [int(k) for k in kepids.split(",") if k.strip()] or None
-        out = survey.run(ids, workers, limit, lambda m, f: print(f"\r{m:<40} {f * 100:5.1f}%", end="", file=sys.stderr))
+        out = survey.summarise(survey.surveyed()) if summary else survey.run(ids, workers, limit, lambda m, f: print(f"\r{m:<40} {f * 100:5.1f}%", end="", file=sys.stderr))
         self.stderr.write("")
         self.stdout.write(f"stars {out['stars']} (errors {out['errors']}) | signals {out['signals']} | not in any NASA table: {out['unlisted']} | "
                           f"of those called a planet: {out['unlisted_called_planet']} | in the vetting queue (P >= 0.9): {out['unlisted_in_vetting_queue']}")
