@@ -1,0 +1,98 @@
+{% load cte %}
+{% comment %} The body of an analysis: verdict, numbers, charts, checks, catalogue. Shared by the research page and the report. {% endcomment %}
+<section class="rp-section">
+  <div class="split">
+    <div>
+      <span class="tiny">Probability this is a planet</span>
+      <div class="hero">
+        <i class="hero-bar" aria-hidden="true"></i>
+        <div class="hero-num">{{ run.p_planet|pct:1 }}</div>
+        <div class="hero-aside"><span><b>S/N {{ res.diagnostics.snr|num:1 }}</b></span><span><b>{{ res.diagnostics.n_transits }}</b> transits</span></div>
+      </div>
+      {% for p in probs %}
+      <div class="meter" style="grid-template-columns:190px 1fr 56px"><span{% if p.top %} style="font-weight:500"{% endif %}>{{ p.label }}</span><span class="meter-t"><i style="width:{{ p.pct }}%"></i></span><span class="meter-n">{{ p.p|pct:2 }}</span></div>
+      {% endfor %}
+      <p class="co" style="margin-top:10px">Five neural networks read the folded light curve; boosted trees weigh their answer with 57 measurements of the signal. The networks alone say {{ res.classification.cnn_probabilities.PLANET_CANDIDATE|pct:1 }} planet.</p>
+    </div>
+    <div>
+      <div class="figures small" style="margin-bottom:14px">
+        <div><div class="fig-label">Period</div><div class="fig-value">{{ res.parameters.period_days|num:4 }} <span class="fig-detail">d</span></div></div>
+        <div><div class="fig-label">Depth</div><div class="fig-value">{{ res.parameters.transit_depth_ppm|num:0 }} <span class="fig-detail">ppm</span></div></div>
+        <div><div class="fig-label">Size if a planet</div><div class="fig-value">{{ res.parameters.radius_earth|num:2 }} <span class="fig-detail">R⊕</span></div></div>
+      </div>
+      <dl class="kv">
+        <dt>Duration of the dip · expected for this star</dt><dd>{{ res.fit.t14_hours|num:2 }} h · {{ res.parameters.transit_duration_hours|num:2 }} h</dd>
+        <dt>Distance from the star</dt><dd>{{ res.parameters.semi_major_axis_au|num:4 }} AU · {{ res.parameters.a_over_rstar|num:1 }} star radii</dd>
+        <dt>Temperature there · sunlight against Earth's</dt><dd>{{ res.parameters.equilibrium_temp_k|num:0 }} K · {{ res.parameters.insolation_earth|num:0 }}×</dd>
+        {% if res.refined.converged %}<dt>Size, limb-darkened fit</dt><dd>{{ res.refined.radius_earth|num:2 }} ± {{ res.refined.radius_earth_err|num:2 }} R⊕</dd>{% endif %}
+        <dt>Mid-transit time</dt><dd>{{ res.bls.t0|num:4 }} + n × {{ res.parameters.period_days|num:5 }}{% if res.metadata.time_system == "bkjd" %} BKJD{% endif %}</dd>
+        <dt>Search peak strength (SDE)</dt><dd>{{ res.bls.sde|num:1 }}</dd>
+      </dl>
+    </div>
+  </div>
+</section>
+
+<section class="rp-section">
+  <h2 class="sheet-title">The star <span class="quiet">· {{ star }} · {{ run.target.name }} · {{ run.target.mission }} ·</span></h2>
+  <div class="cols">
+    <dl class="kv">
+      <dt>Temperature</dt><dd>{{ res.stellar.t_eff_k|num:0 }} K</dd>
+      <dt>Radius · mass</dt><dd>{{ res.stellar.r_star_solar|num:3 }} R☉ · {{ res.stellar.m_star_solar|num:3 }} M☉</dd>
+      <dt>Measurements used</dt><dd>{{ res.input.cadences|num:0 }} over {{ res.input.baseline_days|num:0 }} days</dd>
+      <dt>Time between measurements</dt><dd>{{ res.input.cadence_minutes|num:1 }} min</dd>
+      <dt>Scatter outside transit</dt><dd>{{ res.diagnostics.oot_scatter_ppm|num:0 }} ppm</dd>
+    </dl>
+    <div>
+      {% if objects %}
+      <table class="mini"><thead><tr><th>NASA lists on this star</th><th class="r">Period</th><th class="r">Radius</th><th class="r">Depth</th></tr></thead><tbody>
+        {% for o in objects %}<tr><td>{{ o.name }}<span class="sub">{{ o.status|lower }}</span></td><td class="r num">{{ o.period_days|num:4 }} d</td><td class="r num">{% if o.radius_earth %}{{ o.radius_earth|num:2 }} R⊕{% else %}—{% endif %}</td><td class="r num">{% if o.depth_ppm %}{{ o.depth_ppm|num:0 }} ppm{% else %}—{% endif %}</td></tr>{% endfor %}
+      </tbody></table>
+      {% endif %}
+      {% if match %}<p class="flagline" style="margin-top:12px">This signal is <b style="font:inherit;font-weight:600">{{ match.name }}</b> ({{ match.status|lower }}): catalogued period {{ match.period_days|num:5 }} d, measured within {{ match.period_rel_error|sci }}.</p>
+      {% elif objects %}<p class="flagline high" style="margin-top:12px">This signal's period matches none of them.</p>
+      {% elif has_archive %}<p class="flagline" style="margin-top:12px">NASA lists nothing for this star.</p>{% endif %}
+      {% for s in removed %}<p class="co" style="margin-top:6px">Removed before this search: every transit of the signal at {{ s.period_days|num:4 }} d ({{ s.duration_hours|num:1 }} h each).</p>{% endfor %}
+    </div>
+  </div>
+</section>
+
+<section class="rp-section">
+  <h2 class="sheet-title">The dip <span class="quiet">· Every transit folded on top of the others ·</span></h2>
+  <div class="pgrid">
+    <div class="panel"><h3>Folded transit · measurements and the binned curve the classifier reads</h3><div id="foldPlot"></div></div>
+    <div class="panel"><h3>Fitted model against the binned data · residual scatter {{ res.visuals.residual_rms_ppm|num:0 }} ppm</h3><div id="expPlot"></div><div id="resPlot"></div></div>
+  </div>
+</section>
+
+<section class="rp-section">
+  <h2 class="sheet-title">The search <span class="quiet">· {{ res.bls.n_periods|num:0 }} trial periods from {{ res.bls.period_min|num:1 }} to {{ res.bls.period_max|num:0 }} days ·</span></h2>
+  <div class="panel"><h3>Strength of a repeating dip at each trial period</h3><div id="pgPlot"></div></div>
+  <div class="panel" style="margin-top:18px"><h3>The light curve with the star's slow changes removed{% if res.diagnostics.n_transits <= 40 %} · dashed lines mark predicted transits{% endif %}</h3><div id="lcPlot"></div></div>
+</section>
+
+<section class="rp-section">
+  <h2 class="sheet-title">Is it something else? <span class="quiet">· Tests for eclipsing binaries, neighbouring stars and noise ·</span></h2>
+  <div class="pgrid three" style="grid-template-columns:repeat(3,minmax(0,1fr))">
+    <div class="panel"><h3>Odd against even transits</h3><div id="oddEvenPlot"></div><p class="legend-note">A planet gives identical curves.</p></div>
+    <div class="panel"><h3>Half an orbit later</h3><div id="secPlot"></div><p class="legend-note">A dip here is a second star's eclipse.</p></div>
+    <div class="panel"><h3>Depth of each transit</h3><div id="depthPlot"></div><p class="legend-note">Dashed line is the fitted depth.</p></div>
+  </div>
+  <table class="mini" style="margin-top:14px">
+    <thead><tr><th>Test</th><th>Measured</th><th>Reading</th></tr></thead>
+    <tbody>
+      {% for c in checks %}<tr><td>{{ c.name }}<span class="sub">{{ c.why }}</span></td><td class="num">{{ c.measured }}</td>
+        <td>{% if c.verdict == "for" %}consistent with a planet{% elif c.verdict == "against" %}<span class="tag bad">counts against a planet</span>{% elif c.verdict == "weak" %}no shift seen, but the test is weak at this depth{% else %}<span class="quiet">no reading</span>{% endif %}</td></tr>{% endfor %}
+    </tbody>
+  </table>
+  {% for f in flags %}<p class="flagline {{ f.severity }}" style="margin-top:12px"><b>{{ f.code }}</b>{{ f.message }}</p>{% endfor %}
+  {% for a in further %}<p class="flagline" style="margin-top:12px">With this signal masked, another dip remains: {{ a.period_days|num:4 }} d, {{ a.depth_ppm|num:0 }} ppm, S/N {{ a.snr|num:1 }} over {{ a.transits }} transits{% if a.classification %}; the classifier calls it {{ a.classification.prediction|lower_words }} ({{ a.classification.probabilities.PLANET_CANDIDATE|pct:0 }} planet){% endif %}.</p>{% endfor %}
+</section>
+
+<section class="rp-section">
+  <h2 class="sheet-title">Transit by transit <span class="quiet">· {{ res.visuals.stack|length }} observed ·</span></h2>
+  <div class="pgrid">
+    <div class="panel"><h3>Every transit, stacked</h3><div id="stackPlot"></div><p class="legend-note">One row per transit; darker is deeper. A real signal lines up in a vertical band.</p></div>
+    <div class="panel"><h3>What the classifier relied on</h3><div id="salLocal"></div><p class="legend-note">How far the planet probability falls when that stretch of the folded curve is flattened.</p></div>
+  </div>
+</section>
+{{ series|json_script:"seriesData" }}

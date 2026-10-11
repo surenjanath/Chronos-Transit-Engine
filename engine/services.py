@@ -117,15 +117,15 @@ def get_or_create_target(name: str, mission: str, stellar: dict) -> Target:
 def create_run(config: dict) -> str:
     """Register a queued run. `config` = {source, target_name?, mast?, synthetic?, upload_id?, stellar_params?, pipeline?}."""
     source = config.get("source")
-    if source not in ("synthetic", "mast", "upload", "benchmark"):
-        raise ValueError("source must be one of synthetic, mast, upload, benchmark")
+    if source not in ("synthetic", "mast", "upload", "benchmark", "research"):
+        raise ValueError("source must be one of synthetic, mast, upload, benchmark, research")
     stellar = {k: v for k, v in (config.get("stellar_params") or {}).items() if v is not None}
     if source == "mast":
         mast = config.get("mast") or {}
         if not str(mast.get("target", "")).strip():
             raise ValueError("A MAST target is required")
         name, mission = str(mast["target"]).strip(), mast.get("mission", "TESS")
-    elif source == "benchmark":
+    elif source in ("benchmark", "research"):
         name, mission = f"KIC {int(config['kepid'])}", "Kepler"
     else:
         name = (config.get("target_name") or "").strip() or f"{'SYN' if source == 'synthetic' else 'UPL'}-{uuid.uuid4().hex[:6].upper()}"
@@ -170,6 +170,13 @@ def execute_run(run_id: str) -> None:
         elif config["source"] == "benchmark":
             data = ingest.load_benchmark_star(config["kepid"])
             message = "Ingested held-out Kepler KOI photometry (blind benchmark)"
+        elif config["source"] == "research":  # a dataset star looked at for its own sake, not scored against the catalogue
+            data = ingest.load_benchmark_star(config["kepid"])
+            data.truth = None
+            message = "Ingested Kepler photometry of a dataset star"
+            if config.get("remove"):
+                data = ingest.remove_transits(data, config["remove"])
+                message = "Ingested Kepler photometry with the transits of the star's other signals removed"
         elif config["source"] == "upload":
             data = ingest.load_upload(config["upload_id"], stellar, target_name)
             message = "Ingested uploaded photometric timeseries"
@@ -199,7 +206,7 @@ def execute_run(run_id: str) -> None:
         results, arrays = core.process(data, cfg, log, lambda name, frac: update(stage=name, progress=round(frac, 3)),
                                        lambda text: live_notes.__setitem__(run_id, text))
         results["metadata"] = clean(data.meta)
-        if config["source"] in ("mast", "benchmark"):  # what does the NASA Exoplanet Archive already know about this star?
+        if config["source"] in ("mast", "benchmark", "research"):  # what does the NASA Exoplanet Archive already know about this star?
             try:
                 match = archive.crossmatch(data.meta["target_name"], results["bls"]["period"],
                                            results["parameters"]["radius_earth"], results["parameters"]["transit_depth_ppm"])
@@ -397,7 +404,7 @@ def overview() -> dict:
         "top": sorted((r for r in done if r.prediction == "PLANET_CANDIDATE"), key=lambda r: -(r.p_planet or 0))[:5],
         "classes": classes, "dispositions": dispositions,
         "sources": [{"label": {"mast": "MAST archive", "synthetic": "Synthetic", "upload": "CSV upload",
-                               "benchmark": "Blind benchmark"}.get(k, k), "count": v}
+                               "benchmark": "Blind benchmark", "research": "Research"}.get(k, k), "count": v}
                     for k, v in sources.most_common()],
         "daily": {"labels": [d.strftime("%m-%d") for d in days], "runs": [by_day[d][0] for d in days],
                   "candidates": [by_day[d][1] for d in days]},

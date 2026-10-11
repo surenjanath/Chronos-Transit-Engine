@@ -1,0 +1,48 @@
+/* report.css — the printable report on a run, and the analysis section it shares with the research page. */
+.sub{display:block}
+.analysis .rp-section{margin:0 0 34px}
+.analysis .rp-section .sheet-title{margin-bottom:14px}
+.analysis .mini td .sub{font-size:11.5px;color:var(--mute);max-width:60ch}
+
+body:has(.report){background:#cfcfcb}
+.rp-bar{position:sticky;top:0;z-index:10;display:flex;justify-content:space-between;align-items:center;gap:16px;padding:10px 22px;background:var(--canvas);border-bottom:1px solid var(--rule);font-size:13px}
+.rp-bar-actions{display:flex;gap:10px;align-items:center}
+.report{--canvas:#fff;width:210mm;margin:22px auto 60px;padding:16mm 15mm;background:#fff;color:var(--ink);font-size:13px;box-shadow:0 2px 24px rgba(0,0,0,.12)}
+.rp-head{border-bottom:2px solid var(--ink);padding-bottom:14px;margin-bottom:22px}
+.rp-brand{display:flex;justify-content:space-between;font-size:11.5px;color:var(--mute);letter-spacing:.02em}
+.rp-head h1{font-size:40px;font-weight:500;letter-spacing:-.035em;line-height:1;margin:16px 0 8px}
+.rp-sub{margin:0;color:var(--mute);font-size:14px}
+.rp-summary p{max-width:none;margin:0 0 8px;font-size:14px;line-height:1.5}
+.rp-verdict{border-left:2px solid var(--ink);padding:8px 0 8px 12px;margin-top:12px !important}
+.report .rp-section{margin:0 0 26px}
+.report .sheet-title,.report .panel h3{break-after:avoid}
+.report .split{grid-template-columns:minmax(0,1.05fr) minmax(0,.95fr) !important}
+.report .cols{grid-template-columns:repeat(2,minmax(0,1fr)) !important}
+.report .pgrid{grid-template-columns:repeat(2,minmax(0,1fr)) !important}
+.report .pgrid.three{grid-template-columns:repeat(3,minmax(0,1fr)) !important}
+.report .kv,.report .mini tr,.report .flagline,.report .rp-verdict,.report .hero{break-inside:avoid}
+.report .sheet-title{font-size:15px;border-top:1px solid var(--ink);padding-top:9px;margin:0 0 12px}
+.report .split{gap:34px}
+.report .cols{gap:14px 34px}
+.report .hero-num{font-size:62px}
+.report .figures{gap:14px 26px;margin-bottom:10px}
+.report .figures.small .fig-value{font-size:23px}
+.report .kv{font-size:12.5px}
+.report .kv dt,.report .kv dd{padding:5px 0}
+.report .panel{break-inside:avoid}
+.report .pgrid{gap:14px 22px;margin:8px 0}
+.report .mini{font-size:12px}
+.report .mini td{padding:5px 6px 5px 0}
+.report .mini th.r,.report .mini td.r{padding-right:0;padding-left:8px}
+.report .flagline{font-size:12.5px;padding:6px 0 6px 10px;margin-bottom:6px}
+.report .plot canvas{cursor:default}
+.report .plot-tip{display:none}
+
+@page{size:A4;margin:14mm 15mm}
+@media print{
+  html,body{background:#fff !important}
+  body:has(.report){background:#fff}
+  .rp-bar{display:none}
+  .report{width:auto;margin:0;padding:0;box-shadow:none}
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}

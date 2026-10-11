@@ -18,8 +18,9 @@ from cte.synthetic import a_over_rstar, transit_flux
 from cte.telemetry import verify_jsonl
 
 from . import autopilot, services
+from . import research as research_jobs
 from .forms import CalculatorForm, NewRunForm, SettingsForm, SignalCheckForm, VettingForm
-from .models import CLASS_LABELS, DISPOSITIONS, AutomationCycle, LogEvent, Run, Target, ValidationRun
+from .models import CLASS_LABELS, DISPOSITIONS, AutomationCycle, LogEvent, ResearchCase, Run, Target, ValidationRun
 
 
 def _page(request, queryset, per_page):
@@ -829,3 +830,162 @@ def method(request):
     }
     return render(request, "pages/method.html", {"flags": flags, "page_title": "Method",
                                                  "dispositions": [(DISPOSITIONS[k], v, k) for k, v in meanings.items()]})
+
+
+# ---------------------------------------------------------------------------
+# Research: possible planets from the survey, and the report on a run
+# ---------------------------------------------------------------------------
+
+def research(request):
+    from cte import survey
+    show = request.GET.get("show", "clean")
+    rows = survey.possible_planets()
+    cases = {(c.kepid, round(c.period_days, 4)): c for c in ResearchCase.objects.all()}
+    for r in rows:
+        r["case"] = cases.get((r["kepid"], round(r["period_days"], 4)))
+    clean = [r for r in rows if not r["notes"]]
+    return render(request, "pages/research.html", {
+        "rows": clean if show == "clean" else rows, "show": show, "n_all": len(rows), "n_clean": len(clean),
+        "stars": survey.stars_surveyed(), "cases": ResearchCase.objects.select_related("run")[:12], "page_title": "Research",
+    })
+
+
+@require_POST
+def research_open(request):
+    try:
+        case = research_jobs.open_case(int(request.POST["kepid"]), float(request.POST["period"]))
+    except (LookupError, KeyError, ValueError) as exc:
+        messages.error(request, str(exc))
+        return redirect("research")
+    return redirect("research_case", pk=case.pk)
+
+
+def _checks(res: dict) -> list[dict]:
+    """Each automated test of a run as a row: what was measured and which way it points."""
+    d, out = res.get("diagnostics") or {}, []
+
+    def add(name, measured, verdict, why):
+        out.append({"name": name, "measured": measured, "verdict": verdict, "why": why})
+
+    oe = d.get("odd_even")
+    if oe:
+        add("Odd against even transits", f"{oe['depth_odd_ppm']:.0f} and {oe['depth_even_ppm']:.0f} ppm, {abs(oe['sigma']):.1f}σ apart",
+            "against" if abs(oe["sigma"]) >= 3 else "for", "Two unequal stars eclipsing each other give alternating depths; a planet gives the same depth every time.")
+    else:
+        add("Odd against even transits", "not measurable", "none", "Too few transits to split by parity.")
+    sec = d.get("secondary")
+    if sec:
+        add("Secondary eclipse, half an orbit later", f"{sec['depth_ppm']:.0f} ppm, {sec['sigma']:.1f}σ",
+            "against" if sec["sigma"] >= 3 and sec.get("ratio", 0) >= 0.05 else "for", "A dip here means the companion shines by its own light: a star, not a planet.")
+    else:
+        add("Secondary eclipse, half an orbit later", "no coverage", "none", "The light curve has no data at phase 0.5.")
+    cen = d.get("centroid")
+    if cen:
+        add("Movement of the star's image in transit", f"{cen['offset_mpix']:.2f} millipixels, {cen['sigma']:.1f}σ",
+            "against" if abs(cen["sigma"]) >= 3 else "for", "If the image shifts during the dip, the dimming comes from a neighbouring star.")
+    else:
+        add("Movement of the star's image in transit", "no centroid data", "none", "This light curve carries no image positions.")
+    pix = d.get("pixels")
+    if pix and pix.get("pix_quarters"):
+        sigma = pix.get("pix_sigma")
+        add("Where on the detector the dip comes from", f"{pix['pix_offset']:.2f} pixels from the target"
+            + (f", {sigma:.1f}σ" if sigma is not None else "") + f", {pix['pix_quarters']:.0f} quarters",
+            "against" if sigma is not None and sigma >= 3 and pix["pix_offset"] >= 0.5 else ("weak" if (res["parameters"]["transit_depth_ppm"] or 0) < 150 else "for"),
+            "The image in transit is subtracted from the image just outside it; the difference shows the source of the dip. Below about 150 ppm the difference image is noise-limited and the test has little power.")
+    else:
+        add("Where on the detector the dip comes from", "not measured", "none", "No target pixel files were read for this run.")
+    ratio = d.get("duration_ratio")
+    if ratio is not None:
+        add("Duration against a transit across this star", f"{ratio:.2f} of the expected {res['parameters']['transit_duration_hours']:.2f} h",
+            "against" if ratio > 1.6 or ratio < 0.2 else "for", "A dip much longer than the star allows points to a different, larger star; a much shorter one to a grazing eclipse.")
+    v = (res.get("fit") or {}).get("v_shape")
+    if v is not None:
+        add("Shape of the dip", f"{v:.2f} on a scale from 0 (flat-bottomed) to 1 (V-shaped)", "against" if v > 0.9 else "for",
+            "Planets cross the whole disc and give flat-bottomed dips; grazing binaries give V shapes.")
+    ms = d.get("model_shift")
+    if ms:
+        add("Any other dip at this period", f"strongest elsewhere {ms['depth_ppm']:.0f} ppm at phase {ms['phase']:.2f}, {ms['sigma']:.1f}σ",
+            "against" if ms.get("significant") else "for", "A second significant dip at another phase is the other eclipse of a binary on an eccentric orbit.")
+    radius = res["parameters"].get("radius_earth")
+    if radius:
+        add("Size of the companion", f"{radius:.2f} Earth radii", "against" if radius > 25 else "for", "Anything much larger than Jupiter (11.2 Earth radii) is a star.")
+    return out
+
+
+def _report_context(r: Run) -> dict:
+    from cte import model as cnn
+    res = r.results
+    p, d, st = res["parameters"], res["diagnostics"], res["stellar"]
+    case = r.research_cases.first()
+    removed = (res.get("metadata") or {}).get("removed_signals") or []
+    archive_match = res.get("archive_match") or {}
+    objects, match = archive_match.get("objects") or [], archive_match.get("match")
+    probs = [{"label": CLASS_LABELS[k], "p": v, "pct": round(v * 100, 2), "top": k == r.prediction}
+             for k, v in res["classification"]["probabilities"].items()]
+    checks = _checks(res)
+    against = [c for c in checks if c["verdict"] == "against"]
+    star = case.host if case else (r.target.name if r.source == "research" else r.target.display)
+    summary = [f"The engine finds a dip of {p['transit_depth_ppm']:.0f} parts per million in the light of {star} that repeats every "
+               f"{p['period_days']:.4f} days and lasts {res['fit']['t14_hours']:.1f} hours. It was seen {d['n_transits']} times, "
+               f"at a signal-to-noise of {d['snr']:.1f}."]
+    summary.append(f"The classifier puts the probability that this is a planet at {r.p_planet * 100:.1f}%. If it is one, it is "
+                   f"{p['radius_earth']:.2f} times the size of Earth and orbits {p['semi_major_axis_au']:.3f} AU from its star, where it would be at about "
+                   f"{p['equilibrium_temp_k']:.0f} K.")
+    if removed:
+        summary.append(f"This analysis was made after cutting out the transits of {len(removed)} other signal{'s' if len(removed) != 1 else ''} "
+                       f"on the same star (at {', '.join(format(s['period_days'], '.4f') + ' d' for s in removed)}), so that this one could be measured on its own.")
+    if match:
+        summary.append(f"The period matches {match['name']}, which NASA lists as {match['status'].lower()}.")
+    elif objects:
+        summary.append(f"The period matches none of the {len(objects)} object{'s' if len(objects) != 1 else ''} NASA lists for this star.")
+    elif archive_match:
+        summary.append("NASA lists nothing for this star.")
+    summary.append(f"Of {len(checks)} automated tests, {len(against)} count{'s' if len(against) == 1 else ''} against a planet"
+                   + (": " + "; ".join(c["name"].lower() for c in against) + "." if against else "."))
+    logs = r.logs.order_by("seq")
+    last = logs.last()
+    return {"run": r, "res": res, "star": star, "probs": probs, "checks": checks, "summary": summary, "case": case, "removed": removed,
+            "objects": objects, "match": match, "has_archive": bool(archive_match), "series": services.run_series(r),
+            "n_logs": logs.count(), "last_hash": last.hash if last else "", "metrics": cnn.load_metrics() or {},
+            "flags": res.get("flags") or [], "further": res.get("additional_signals") or [],
+            "generated": __import__("django.utils.timezone", fromlist=["now"]).now(), "page_title": f"Report · {star}"}
+
+
+def run_report(request, pk):
+    r = get_object_or_404(Run.objects.select_related("target"), pk=pk)
+    if r.status != "completed" or not r.results:
+        raise Http404("Only a finished run has a report")
+    return render(request, "pages/report.html", _report_context(r) | {"printing": request.GET.get("print") == "1"})
+
+
+def run_report_pdf(request, pk):
+    r = get_object_or_404(Run.objects.select_related("target"), pk=pk)
+    if r.status != "completed" or not r.results:
+        raise Http404("Only a finished run has a report")
+    from django.urls import reverse
+    try:
+        pdf = research_jobs.render_pdf(request.build_absolute_uri(reverse("run_report", args=[r.id])) + "?print=1", r.id)
+    except Exception as exc:
+        messages.error(request, f"The PDF could not be made: {exc}")
+        return redirect("run_report", pk=r.id)
+    case = r.research_cases.first()
+    name = "".join(ch if ch.isalnum() else "-" for ch in (case.host if case else r.target.display)).strip("-")
+    response = HttpResponse(pdf, content_type="application/pdf")
+    response["Content-Disposition"] = f'{"inline" if request.GET.get("view") else "attachment"}; filename="{name}-{r.period_days:.4f}d-report.pdf"'
+    return response
+
+
+def research_case(request, pk):
+    case = get_object_or_404(ResearchCase.objects.select_related("run__target", "base_run"), pk=pk)
+    ctx = {"case": case, "signal": case.signal, "page_title": str(case)}
+    if case.status == "done" and case.run and case.run.results:
+        ctx |= _report_context(case.run) | {"page_title": str(case)}
+    return render(request, "pages/research_case.html", ctx)
+
+
+@require_GET
+def research_status(request, pk):
+    case = get_object_or_404(ResearchCase.objects.select_related("run", "base_run"), pk=pk)
+    live = next((r for r in (case.run, case.base_run) if r is not None and r.is_live), None)
+    return JsonResponse({"status": case.status, "step": case.step, "error": case.error,
+                         "stage": live.stage_label if live else "", "percent": live.percent if live else None})

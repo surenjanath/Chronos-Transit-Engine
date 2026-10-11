@@ -1,0 +1,76 @@
+{% extends "layout.html" %}
+{% load static cte %}
+{% block head %}<link rel="stylesheet" href="{% static 'css/report.css' %}?v=1">{% endblock %}
+
+{% block page %}
+      <section class="sheet">
+        <div class="sheet-head">
+          <h1 class="sheet-title">{{ case.host }} <span class="quiet">· A possible planet at {{ case.period_days|num:4 }} days · KIC {{ case.kepid }} ·</span></h1>
+          <div class="sheet-tools">
+            <a href="{% url 'research' %}">‹ All possible planets</a>
+            {% if case.status == "done" and case.run %}
+            <a href="{% url 'run' case.run.id %}">Full analysis</a>
+            {% if case.base_run and case.base_run.id != case.run.id %}<a href="{% url 'run' case.base_run.id %}">The whole star</a>{% endif %}
+            <a class="go sm" href="{% url 'run_report' case.run.id %}">Generate report</a>
+            {% endif %}
+          </div>
+        </div>
+
+        {% if case.status == "failed" %}
+        <p class="warn-line danger">The investigation failed.</p>
+        <p class="flagline high">{{ case.error }}</p>
+        <form method="post" action="{% url 'research_open' %}">{% csrf_token %}<input type="hidden" name="kepid" value="{{ case.kepid }}"><input type="hidden" name="period" value="{{ case.period_days }}"><button class="sm">Try again</button></form>
+        {% elif case.status != "done" %}
+        <div id="caseLive" data-url="{% url 'research_status' case.pk %}">
+          <p class="live-note" id="caseStep" aria-live="polite">{{ case.step|default:"Waiting for a free worker" }}…</p>
+          <p class="live-meta"><span id="caseStage"></span> This takes a few minutes: the star is analysed in full, then again with its other transits removed. The page updates on its own.</p>
+        </div>
+        {% endif %}
+
+        <div class="cols" style="margin-top:8px">
+          <div>
+            <h2 class="sheet-title" style="margin-bottom:8px">What the survey saw</h2>
+            <dl class="kv">
+              <dt>Period</dt><dd>{{ signal.period_days|num:4 }} d</dd>
+              <dt>Depth</dt><dd>{{ signal.depth_ppm|num:0 }} ppm</dd>
+              <dt>Signal-to-noise{% if signal.transits %} · transits{% endif %}</dt><dd>{{ signal.snr|num:1 }}{% if signal.transits %} · {{ signal.transits }}{% endif %}</dd>
+              <dt>Found as</dt><dd>signal {{ signal.rank }} of {{ signal.signals_on_star }} on the star</dd>
+              <dt>Classifier, in the survey</dt><dd>{{ signal.p_planet|pct }} planet</dd>
+              {% if signal.event_chi2 %}<dt>Agreement between single transits (1 is ideal, above 15 is rejected)</dt><dd>{{ signal.event_chi2|num:2 }}</dd>{% endif %}
+            </dl>
+          </div>
+          <div>
+            <h2 class="sheet-title" style="margin-bottom:8px">Why it is on the list</h2>
+            <p class="flagline">It is in none of NASA's Kepler tables for this star: not the Objects of Interest, and not the Q1–Q12, Q1–Q16, DR24 or DR25 detection lists, at this period or at a multiple or fraction of a listed one.</p>
+            {% for n in signal.notes %}<p class="flagline high">Against it: {{ n }}.</p>{% empty %}<p class="flagline">Nothing obvious counts against it in the first checks.</p>{% endfor %}
+            <p class="co">That is where the evidence ends. It is a candidate signal, not a planet: the engine reports a false further signal on about 2 of every 105 stars.</p>
+          </div>
+        </div>
+      </section>
+
+      {% if case.status == "done" and run %}
+      <section class="sheet analysis">
+        <h2 class="sheet-title">Analysed on its own <span class="quiet">· {% if removed %}{{ removed|length }} other signal{{ removed|length|pluralize }} removed first{% else %}already the strongest signal on the star{% endif %} · run <span class="mono">{{ run.id }}</span> ·</span></h2>
+        {% for line in summary %}<p style="max-width:78ch;margin:0 0 8px">{{ line }}</p>{% endfor %}
+        <div style="height:18px"></div>
+        {% include "partials/_analysis.html" %}
+        <div class="actions" style="margin-top:8px"><a class="go sm" href="{% url 'run_report' run.id %}">Generate report</a> <a class="sm" href="{% url 'run_report_pdf' run.id %}">Download the PDF</a></div>
+      </section>
+      {% endif %}
+{% endblock %}
+
+{% block page_js %}
+<script src="{% static 'js/system.js' %}?v=4"></script>
+<script src="{% static 'js/report.js' %}?v=1"></script>
+<script>
+(function(){
+  const live=document.getElementById('caseLive'); if(!live) return;
+  const tick=async()=>{ try{ const d=await (await fetch(live.dataset.url)).json();
+      if(d.status==='done'||d.status==='failed'){ location.reload(); return; }
+      document.getElementById('caseStep').textContent=(d.step||'Waiting for a free worker')+'…';
+      document.getElementById('caseStage').textContent=d.stage?`Now: ${d.stage}, ${d.percent}%.`:'';
+    }catch(_){} setTimeout(tick,1500); };
+  tick();
+})();
+</script>
+{% endblock %}

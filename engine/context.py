@@ -5,10 +5,10 @@ from cte import model
 from . import autopilot, services
 from .models import Run, Target
 
-NAV = [("overview", "Overview"), ("targets", "Targets"), ("runs", "Runs"), ("vetting", "Vetting"), ("atlas", "Atlas"), ("map", "Map"),
+NAV = [("overview", "Overview"), ("targets", "Targets"), ("runs", "Runs"), ("vetting", "Vetting"), ("research", "Research"), ("atlas", "Atlas"), ("map", "Map"),
        ("benchmark", "Benchmark"), ("automation", "Automation"), ("validation", "Validation"), ("logs", "Audit log"), ("new", "New analysis"),
        ("signal_check", "Signal check"), ("calculator", "Calculator"), ("settings", "Settings"), ("method", "Method")]
-PAGE_OF = {"target": "targets", "run": "runs"}
+PAGE_OF = {"target": "targets", "run": "runs", "research_case": "research"}
 
 
 def shell(request):

@@ -9,6 +9,7 @@
             <a href="{% url 'runs' %}">‹ All runs</a>
             <a href="{% url 'target' run.target_id %}">Target</a>
             {% if place %}<a href="{% url 'map' %}?focus={{ place.host|urlencode }}" title="{{ place.distance_ly|num:1 }} light-years from Earth: light takes {{ place.distance_ly|num:1 }} years, Voyager 1 would take {{ place.travel.voyager1_years|bigyears }}">On the map · {{ place.distance_ly|num:1 }} ly</a>{% endif %}
+            {% if run.status == "completed" %}<a class="go sm" href="{% url 'run_report' run.id %}">Generate report</a>{% endif %}
             {% if not run.is_live %}
             <form method="post" action="{% url 'run_rerun' run.id %}" class="inline">{% csrf_token %}<button class="text">Re-run</button></form>
             <form method="post" action="{% url 'run_delete' run.id %}" class="inline" data-confirm="Delete run {{ run.id }} and its archived products? This cannot be undone.">{% csrf_token %}<button class="text danger">Delete</button></form>

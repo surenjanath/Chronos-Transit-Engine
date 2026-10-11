@@ -336,3 +336,47 @@ def test_signal_check_page_api_and_batch(client):
     rows = client.post(reverse("signal_check_batch"), {"table": table}).content.decode().strip().splitlines()
     assert len(rows) == 3 and rows[1].startswith("1,K1,12.3,420.0,3.9") and "depth_ppm" in rows[2].split(",")[-1]
     assert client.post(reverse("signal_check_batch"), {}).status_code == 302
+
+
+def test_report_and_research_pages(client, planet, monkeypatch):
+    from cte import ingest, survey
+    from engine import research
+    page = client.get(reverse("run_report", args=[planet.id]))
+    assert page.status_code == 200
+    html = page.content.decode()
+    assert "Summary" in html and "seriesData" in html and "Is it something else?" in html and "Download PDF" in html
+    assert "rp-bar" not in client.get(reverse("run_report", args=[planet.id]), {"print": "1"}).content.decode()
+    assert "Generate report" in client.get(reverse("run", args=[planet.id])).content.decode()
+    monkeypatch.setattr(research, "browser", lambda: None)  # no browser to print with: back to the report, with the reason
+    assert client.get(reverse("run_report_pdf", args=[planet.id])).status_code == 302
+
+    signal = {"kepid": 1, "host": "Kepler-000", "rank": 2, "signals_on_star": 2, "period_days": 9.5, "depth_ppm": 80.0, "snr": 8.0,
+              "p_planet": 0.95, "radius_earth": 1.0, "transits": 100, "event_chi2": 1.2, "prediction": "PLANET_CANDIDATE",
+              "objects": [{"name": "Kepler-000 b", "period_days": 3.2, "status": "CONFIRMED"}], "notes": []}
+    monkeypatch.setattr(survey, "possible_planets", lambda: [dict(signal)])
+    monkeypatch.setattr(survey, "stars_surveyed", lambda: 10)
+    listing = client.get(reverse("research")).content.decode()
+    assert "Kepler-000" in listing and "Investigate" in listing
+    assert client.post(reverse("research_open"), {"kepid": 1, "period": 3.3}).status_code == 302 and not research.ResearchCase.objects.exists()
+    monkeypatch.setattr(research.services, "_spawn", lambda *a, **k: None)
+    case_url = client.post(reverse("research_open"), {"kepid": 1, "period": 9.5})["Location"]
+    assert "Waiting for a free worker" in client.get(case_url).content.decode()
+    case = research.ResearchCase.objects.get()
+    assert client.get(reverse("research_status", args=[case.pk])).json()["status"] == "queued"
+    research.ResearchCase.objects.filter(pk=case.pk).update(status="done", run=planet)
+    done = client.get(case_url).content.decode()
+    assert "Analysed on its own" in done and "Generate report" in done
+
+    d = ingest.make_synthetic(vars(SyntheticSpec(seed=3, period_days=4.0, depth=0.004)), {"t_eff_k": 5778.0, "r_star_solar": 1.0, "m_star_solar": 1.0}, "cut")
+    cut = ingest.remove_transits(d, [{"period_days": 4.0, "t0": float(d.truth["t0"]) if d.truth.get("t0") else float(d.time[0]), "duration_hours": 3.0}])
+    assert 0 < len(cut.time) < len(d.time) and cut.truth is None and cut.meta["removed_cadences"] == len(d.time) - len(cut.time)
+
+
+def test_survey_triage_notes():
+    from cte.survey import triage
+    planet = [{"koi_disposition": "CONFIRMED", "koi_period": 7.054, "kepler_name": "Kepler-783 c", "kepoi_name": "K01165.01"}]
+    clean = {"rank": 3, "period_days": 11.1459, "event_chi2": 1.2}
+    assert triage(clean, planet) == []
+    assert any("simple ratio" in n for n in triage(dict(clean, period_days=3.527), planet))
+    assert any("disagree" in n for n in triage(dict(clean, event_chi2=14.0), planet))
+    assert any("false positive" in n for n in triage(clean, [dict(planet[0], koi_disposition="FALSE POSITIVE")]))

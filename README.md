@@ -191,6 +191,23 @@ The model the results below were measured with is in [`models/`](models/) (27 MB
 start, so a fresh clone classifies with the full model straight away, with nothing to download or train. To train
 your own instead: `build_kepler_dataset`, `train_model`, `train_signal_check` (see the [paper](docs/paper.md)).
 
+## Research and reports
+
+The **Research** page lists every signal of the survey that is in none of NASA's Kepler tables and that the classifier
+calls a planet, with what NASA does list on the star and anything that counts against the signal. **Investigate** runs
+the star in full, then again with its other signals' transits cut out, so the signal gets the whole analysis to itself:
+verdict, numbers, charts, every false-positive test, the pixel check.
+
+Every finished run has a **Generate report** button. The report is the analysis laid out for A4 in the application's
+own type and charts; **Download PDF** prints it with a headless Chrome, Chromium, Edge or Brave if the machine has one
+(`CTE_BROWSER` names another), and the browser's own Print works otherwise.
+
+![Research page](docs/screenshots/research.png)
+
+![First page of a report](docs/screenshots/report.png)
+
+An example: [the report on the 11.146-day signal on Kepler-783](docs/reports/kepler-783-11.146d.pdf), a candidate signal in none of NASA's tables.
+
 ## Looking for planets NASA does not list
 
 ```bash

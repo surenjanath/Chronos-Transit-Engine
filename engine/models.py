@@ -162,3 +162,24 @@ class AutomationCycle(models.Model):
 
     class Meta:
         ordering = ["-id"]
+
+
+class ResearchCase(models.Model):
+    """One possible planet picked from the survey for a closer look: the star is run in full, then run again with its
+    other signals' transits removed so this signal gets the whole analysis to itself."""
+    kepid = models.IntegerField(db_index=True)
+    period_days = models.FloatField()
+    host = models.CharField(max_length=80, blank=True, default="")
+    signal = models.JSONField(default=dict)  # the survey's record of the signal, with NASA's objects and triage notes
+    status = models.CharField(max_length=20, default="queued")  # queued, running, done, failed
+    step = models.CharField(max_length=200, blank=True, default="")
+    error = models.TextField(blank=True, default="")
+    base_run = models.ForeignKey(Run, null=True, on_delete=models.SET_NULL, related_name="+")
+    run = models.ForeignKey(Run, null=True, on_delete=models.SET_NULL, related_name="research_cases")
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.host or 'KIC ' + str(self.kepid)} · {self.period_days:.4f} d"

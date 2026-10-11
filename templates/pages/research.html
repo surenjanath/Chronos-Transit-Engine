@@ -1,0 +1,62 @@
+{% extends "layout.html" %}
+{% load cte %}
+
+{% block page %}
+      <section class="sheet">
+        <div class="sheet-head">
+          <h1 class="sheet-title">Research <span class="quiet">· Signals the engine finds that are in none of NASA's Kepler tables ·</span></h1>
+        </div>
+        <p class="lede">The engine was run blind on {{ stars|num:0 }} Kepler stars and every signal compared with NASA's Objects of Interest and its four detection lists. These are the signals in none of them that the classifier calls a planet. Pick one to have it analysed on its own, see everything about it, and generate a report.</p>
+        {% if not stars %}
+        <p class="empty">No survey on this machine yet. Run <code>python manage.py survey</code>; it can be stopped and resumed.</p>
+        {% else %}
+        <div class="modebar">
+          <div class="seg" role="group" aria-label="Which signals">
+            <a href="?show=clean" class="{% if show == 'clean' %}on{% endif %}">Pass first checks · {{ n_clean }}</a>
+            <a href="?show=all" class="{% if show != 'clean' %}on{% endif %}">All · {{ n_all }}</a>
+          </div>
+          <span class="quiet">most probable first</span>
+        </div>
+        <table class="wide">
+          <thead><tr><th>Star</th><th class="r">Period</th><th class="r">Depth</th><th class="r">S/N</th><th class="r">Size if a planet</th><th class="r">P(planet)</th><th>NASA lists on this star</th><th class="r"></th></tr></thead>
+          <tbody>
+            {% for s in rows %}
+            <tr>
+              <td class="who">{{ s.host }}<span class="sub">KIC {{ s.kepid }} · signal {{ s.rank }} of {{ s.signals_on_star }}{% if s.transits %} · {{ s.transits }} transits{% endif %}</span>
+                {% for n in s.notes %}<span class="sub" style="color:var(--gap)">{{ n }}</span>{% endfor %}</td>
+              <td class="r num">{{ s.period_days|num:4 }} d</td>
+              <td class="r num">{{ s.depth_ppm|num:0 }} ppm</td>
+              <td class="r num">{{ s.snr|num:1 }}</td>
+              <td class="r num">{% if s.radius_earth %}{{ s.radius_earth|num:2 }} R⊕{% else %}—{% endif %}</td>
+              <td class="r num fit">{{ s.p_planet|pct }}</td>
+              <td>{% for o in s.objects %}<span class="sub" style="color:inherit">{{ o.name }} · {{ o.period_days|num:3 }} d · {{ o.status|lower }}</span>{% empty %}<span class="quiet">nothing</span>{% endfor %}</td>
+              <td class="r">
+                {% if s.case %}<a class="go sm" href="{% url 'research_case' s.case.pk %}">{% if s.case.status == "done" %}Open{% elif s.case.status == "failed" %}Failed · open{% else %}Running…{% endif %}</a>
+                {% else %}<form method="post" action="{% url 'research_open' %}" class="inline">{% csrf_token %}<input type="hidden" name="kepid" value="{{ s.kepid }}"><input type="hidden" name="period" value="{{ s.period_days }}"><button class="sm" title="Runs the star in full, then again with its other transits removed: a few minutes">Investigate</button></form>{% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        <p class="legend-note">None of these is a discovery. With nothing there, the engine still reports a further signal on about 2 of every 105 stars, so across {{ stars|num:0 }} stars dozens of false ones are expected. "Pass first checks" means only that nothing obvious counts against the signal: NASA lists a planet or candidate on the star, the single transits agree with each other, and the period is not a multiple or fraction of a listed one.</p>
+        {% endif %}
+      </section>
+
+      {% if cases %}
+      <section class="sheet">
+        <h2 class="sheet-title">Investigated <span class="quiet">· {{ cases|length }} ·</span></h2>
+        <table class="wide">
+          <thead><tr><th>Signal</th><th class="r">P(planet), analysed alone</th><th class="r">S/N</th><th>State</th><th class="r"></th></tr></thead>
+          <tbody>
+            {% for c in cases %}
+            <tr><td class="who"><a href="{% url 'research_case' c.pk %}">{{ c.host }}</a><span class="sub">KIC {{ c.kepid }} · {{ c.period_days|num:4 }} d</span></td>
+              <td class="r num">{% if c.status == "done" and c.run %}{{ c.run.p_planet|pct }}{% else %}—{% endif %}</td>
+              <td class="r num">{% if c.status == "done" and c.run %}{{ c.run.results.diagnostics.snr|num:1 }}{% else %}—{% endif %}</td>
+              <td>{% if c.status == "done" %}Analysed{% elif c.status == "failed" %}<span class="tag bad">Failed</span>{% else %}{{ c.step|default:"Queued" }}{% endif %}</td>
+              <td class="r">{% if c.status == "done" and c.run %}<a class="go sm" href="{% url 'run_report' c.run.id %}">Report</a>{% endif %}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </section>
+      {% endif %}
+{% endblock %}

@@ -264,3 +264,23 @@ def load_benchmark_star(kepid: int) -> LightCurveData:
             "quarters": sorted({int(q) for q in lc["quarter"]})}
     return LightCurveData(lc["time"][order], lc["flux"][order], lc["flux_err"][order], lc["centroid_col"][order],
                           lc["centroid_row"][order], meta, stellar, truth, segment=lc["quarter"][order])
+
+
+def remove_transits(data: LightCurveData, signals: list[dict]) -> LightCurveData:
+    """The same light curve with every transit of the given signals cut out (`period_days`, `t0`, `duration_hours`
+    each), half a duration of margin either side. What is left is searched as if those signals were not there."""
+    keep = np.ones(len(data.time), dtype=bool)
+    for s in signals:
+        p = float(s["period_days"])
+        keep &= np.abs((data.time - float(s["t0"]) + 0.5 * p) % p - 0.5 * p) > 0.75 * float(s["duration_hours"]) / 24.0 + 0.02
+
+    def cut(a):
+        return None if a is None else a[keep]
+
+    meta = dict(data.meta, removed_signals=[{k: s[k] for k in ("period_days", "t0", "duration_hours")} for s in signals],
+                removed_cadences=int((~keep).sum()))
+    periods = ", ".join(f"{float(s['period_days']):.4f} d" for s in signals)
+    return LightCurveData(data.time[keep], data.flux[keep], cut(data.flux_err), cut(data.centroid_col), cut(data.centroid_row),
+                          meta, dict(data.stellar), None,
+                          data.warnings + [f"transits of {len(signals)} other signal(s) removed before the search ({periods})"],
+                          segment=cut(data.segment))

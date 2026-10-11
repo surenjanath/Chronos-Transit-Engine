@@ -165,3 +165,61 @@ def summarise(records: list[dict]) -> dict:
             "signals": sum(len(r["signals"]) for r in records), "unlisted": len(unlisted),
             "unlisted_called_planet": len(planets), "unlisted_in_vetting_queue": sum(1 for s in planets if (s.get("p_planet") or 0) >= 0.9),
             "top": planets[:20], "table": str(UNLISTED)}
+
+
+# the ratios at which one signal leaves an echo of itself: whole multiples and fractions, 2:3 and 3:2
+RATIOS = sorted({float(n) for n in range(2, 9)} | {1.0 / n for n in range(2, 9)} | {2.0 / 3.0, 1.5})
+
+
+def triage(signal: dict, objects: list[dict]) -> list[str]:
+    """Reasons to trust an unlisted signal less. Empty when it passes all of them."""
+    notes = []
+    kinds = {o["koi_disposition"] for o in objects}
+    if kinds and not kinds & {"CONFIRMED", "CANDIDATE"}:
+        notes.append("the only object NASA lists on this star is a false positive")
+    if not objects:
+        notes.append("NASA lists no object of interest on this star")
+    if (signal.get("event_chi2") or 0) > 10:
+        notes.append("its single transits disagree with each other")
+    if signal["rank"] == 1 and objects:
+        notes.append("it is the strongest signal on the star, yet not the catalogued one")
+    for o in objects:
+        ratio = signal["period_days"] / float(o["koi_period"])
+        if abs(ratio - 1) < 0.05:
+            notes.append(f"its period is within 5% of {o.get('kepler_name') or o['kepoi_name']}'s")
+        elif any(abs(ratio / r - 1) < 0.01 for r in RATIOS):
+            notes.append(f"its period is close to a simple ratio of {o.get('kepler_name') or o['kepoi_name']}'s")
+    return notes
+
+
+_possible: dict = {}
+
+
+def possible_planets() -> list[dict]:
+    """Every surveyed signal that is in no NASA table and that the classifier calls a planet, most probable first, each
+    with what NASA lists on its star and the triage notes against it."""
+    from . import kepler
+
+    stamp = RESULTS.stat().st_mtime if RESULTS.exists() else None
+    if _possible.get("stamp") != stamp:
+        listed, current = catalogued_periods(), kepler.current_dispositions()
+        out = []
+        for r in surveyed():
+            objects = sorted(current.get(r["kepid"], []), key=lambda o: float(o["koi_period"]))
+            for s in r["signals"]:
+                if s.get("prediction") != "PLANET_CANDIDATE" or match(s["period_days"], listed.get(r["kepid"], [])):
+                    continue
+                names = sorted({o["kepler_name"].rsplit(" ", 1)[0] for o in objects if o.get("kepler_name")})
+                koi = sorted({o["kepoi_name"].split(".")[0].replace("K0", "KOI-").replace("KOI-0", "KOI-") for o in objects})
+                out.append(dict(s, kepid=r["kepid"], host=(names or koi or [f"KIC {r['kepid']}"])[0], signals_on_star=len(r["signals"]),
+                                objects=[{"name": o.get("kepler_name") or o["kepoi_name"], "period_days": float(o["koi_period"]),
+                                          "status": o["koi_disposition"]} for o in objects],
+                                notes=triage(s, objects)))
+        out.sort(key=lambda s: (bool(s["notes"]), -(s.get("p_planet") or 0.0)))
+        _possible.update(stamp=stamp, rows=out, stars=len(surveyed()))
+    return _possible["rows"]
+
+
+def stars_surveyed() -> int:
+    possible_planets()
+    return _possible.get("stars", 0)
