@@ -271,8 +271,9 @@ python manage.py verify                                   # acceptance checks
 python manage.py benchmark --per-class 30                 # blind benchmark
 ```
 
-The trained model files are not in the repository. To request them, open an issue at
-<https://github.com/surenjanath/Chronos-Transit-Engine/issues>.
+The trained model files are in the repository under `models/`, and the code and model are released under the MIT
+licence. `python manage.py survey` runs the blind pipeline over every star on disk and lists the signals that no
+NASA table contains.
 
 ## Acknowledgements
 

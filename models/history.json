@@ -1,0 +1,109 @@
+[
+ {
+  "trained_at": "2026-10-08T14:33:41.636307+00:00",
+  "status": "active",
+  "auc_simulated": 0.98819,
+  "auc_real": 0.96865,
+  "pr_auc_real": 0.92736,
+  "accuracy_real": 0.86441,
+  "real_stars": 593,
+  "real_test": 118,
+  "champion_auc_real": 0.95282
+ },
+ {
+  "trained_at": "2026-10-08T17:03:55.713637+00:00",
+  "status": "active",
+  "auc_simulated": 0.98966,
+  "auc_real": 0.9651,
+  "pr_auc_real": 0.93698,
+  "auc_real_combined": 0.9776,
+  "accuracy_real": 0.84375,
+  "real_stars": 632,
+  "real_test": 128,
+  "champion_auc_real": 0.96667
+ },
+ {
+  "trained_at": "2026-10-08T18:34:12.031762+00:00",
+  "status": "rejected",
+  "auc_simulated": 0.98881,
+  "auc_real": 0.95474,
+  "pr_auc_real": 0.90902,
+  "auc_real_combined": 0.96864,
+  "accuracy_real": 0.82723,
+  "real_stars": 970,
+  "real_test": 191,
+  "champion_auc_real": 0.95997
+ },
+ {
+  "trained_at": "2026-10-08T18:54:52.117866+00:00",
+  "status": "active",
+  "auc_simulated": 0.98875,
+  "auc_real": 0.96636,
+  "pr_auc_real": 0.92273,
+  "auc_real_combined": 0.97694,
+  "accuracy_real": 0.85106,
+  "real_stars": 990,
+  "real_test": 188,
+  "champion_auc_real": 0.96951
+ },
+ {
+  "trained_at": "2026-10-09T03:38:00.149135+00:00",
+  "status": "active",
+  "auc_simulated": 0.99078,
+  "auc_real": 0.96837,
+  "pr_auc_real": 0.92768,
+  "auc_real_combined": 0.97593,
+  "accuracy_real": 0.83511,
+  "real_stars": 990,
+  "real_test": 188,
+  "champion_auc_real": null
+ },
+ {
+  "trained_at": "2026-10-09T05:14:08.139323+00:00",
+  "status": "active",
+  "auc_simulated": 0.99241,
+  "auc_real": 0.98236,
+  "pr_auc_real": 0.96604,
+  "auc_real_combined": 0.98639,
+  "accuracy_real": 0.90426,
+  "real_stars": 990,
+  "real_test": 188,
+  "champion_auc_real": 0.97669
+ },
+ {
+  "trained_at": "2026-10-10T03:15:03.857008+00:00",
+  "status": "active",
+  "auc_simulated": 0.9923,
+  "auc_real": 0.96311,
+  "pr_auc_real": 0.91436,
+  "auc_real_combined": 0.9859,
+  "accuracy_real": 0.84556,
+  "real_stars": 4485,
+  "real_test": 913,
+  "champion_auc_real": 0.96197
+ },
+ {
+  "trained_at": "2026-10-10T07:26:10.453634+00:00",
+  "status": "active",
+  "auc_simulated": 0.99199,
+  "auc_real": 0.97241,
+  "pr_auc_real": 0.92767,
+  "auc_real_combined": 0.9951,
+  "accuracy_real": 0.77156,
+  "real_stars": 6468,
+  "real_test": 1322,
+  "champion_auc_real": 0.97028
+ },
+ {
+  "trained_at": "2026-10-10T09:05:45.059438+00:00",
+  "status": "active",
+  "auc_simulated": 0.99176,
+  "auc_real": 0.97299,
+  "pr_auc_real": 0.91763,
+  "auc_real_combined": 0.99521,
+  "accuracy_real": 0.77888,
+  "real_stars": 7496,
+  "real_test": 1515,
+  "champion_auc_real": 0.97173
+ }
+]

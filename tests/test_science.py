@@ -174,3 +174,12 @@ def test_galactic_coordinates_and_placement():
     assert galaxy.locate(["nothing"], 0.0, 0.0, cat) is None
     t = galaxy.travel(4.2465, 2026)
     assert 74000 < t["voyager1_years"] < 76000 and abs(t["light_left_year"] - 2021.75) < 0.01
+
+
+def test_survey_matches_catalogued_periods_and_their_aliases():
+    from cte.survey import match
+    listed = [(9.0823, "Kepler-1301 b (CONFIRMED)"), (2.7533, "TCE 7908893-1 (NTP)")]
+    assert match(9.0825, listed) == "Kepler-1301 b (CONFIRMED)"
+    assert match(4.5412, listed) == "Kepler-1301 b (CONFIRMED) at 0.5x its period"
+    assert match(5.5066, listed) == "TCE 7908893-1 (NTP) at 2x its period"
+    assert match(28.464, listed) is None and match(3.0, []) is None

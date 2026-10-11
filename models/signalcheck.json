@@ -1,0 +1,91 @@
+{
+ "trained_at": "2026-10-10T16:48:40.565705+00:00",
+ "features": [
+  "log_period",
+  "log_duration_h",
+  "duration_over_period",
+  "log_depth",
+  "log_snr",
+  "n_transits",
+  "snr_per_transit",
+  "teff",
+  "log_rstar",
+  "log_mstar",
+  "log_density",
+  "log_radius_earth",
+  "duration_ratio",
+  "odd_even_sigma",
+  "secondary_sigma",
+  "secondary_ratio",
+  "centroid_sigma"
+ ],
+ "n_train_examples": 37850,
+ "n_train_stars": 5981,
+ "n_test": 1515,
+ "levels": [
+  {
+   "name": "Everything filled in",
+   "inputs": "all twelve inputs",
+   "auc_planet": 0.9889,
+   "pr_auc_planet": 0.9696,
+   "accuracy": 0.7927,
+   "planet_or_not": 0.9564,
+   "planets_called": [
+    393,
+    421
+   ],
+   "others_called_planet": [
+    38,
+    1094
+   ]
+  },
+  {
+   "name": "No vetting measurements",
+   "inputs": "period, depth, duration, S/N, transits, star",
+   "auc_planet": 0.9672,
+   "pr_auc_planet": 0.9095,
+   "accuracy": 0.7366,
+   "planet_or_not": 0.9017,
+   "planets_called": [
+    394,
+    421
+   ],
+   "others_called_planet": [
+    122,
+    1094
+   ]
+  },
+  {
+   "name": "Period, depth, duration and the star",
+   "inputs": "six inputs",
+   "auc_planet": 0.9672,
+   "pr_auc_planet": 0.9094,
+   "accuracy": 0.7261,
+   "planet_or_not": 0.905,
+   "planets_called": [
+    384,
+    421
+   ],
+   "others_called_planet": [
+    107,
+    1094
+   ]
+  },
+  {
+   "name": "Period, depth and duration only",
+   "inputs": "three inputs",
+   "auc_planet": 0.9469,
+   "pr_auc_planet": 0.8481,
+   "accuracy": 0.697,
+   "planet_or_not": 0.8726,
+   "planets_called": [
+    382,
+    421
+   ],
+   "others_called_planet": [
+    154,
+    1094
+   ]
+  }
+ ]
+}

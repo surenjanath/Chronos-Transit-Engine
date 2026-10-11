@@ -14,7 +14,7 @@ One Django project: server-rendered pages, the science pipeline, and the archive
 ## Contents
 
 - [What it does](#what-it-does) · [Screenshots](#screenshots) · [Run it](#run) · [Measured results](#measured-results)
-- [Signal check](#signal-check) · [Getting the trained model](#getting-the-trained-model) · [Real data](#real-data) · [Map](#map) · [Automation](#automation) · [How the analysis works](#analysis-beyond-the-prd-formulae)
+- [Signal check](#signal-check) · [The trained model](#the-trained-model) · [Looking for planets NASA does not list](#looking-for-planets-nasa-does-not-list) · [Real data](#real-data) · [Map](#map) · [Automation](#automation) · [How the analysis works](#analysis-beyond-the-prd-formulae)
 - [Layout](#layout) · [Pipeline](#pipeline) · [Configuration](#configuration) · [Known limits](#known-limits) · [Notes on the PRD](#notes-on-the-prd)
 
 ## What it does
@@ -73,8 +73,8 @@ cd Chronos-Transit-Engine
 ./run.sh            # http://127.0.0.1:8765
 ```
 
-The first start creates a virtualenv, applies migrations and trains the classifier if no checkpoint exists
-(simulated stars only, about 10 minutes). To reproduce the numbers below, also build the real dataset and retrain:
+The first start creates a virtualenv, applies migrations and installs the trained model from `models/`.
+To reproduce the numbers below from scratch, build the real dataset and retrain:
 
 ```bash
 .venv/bin/python manage.py build_kepler_dataset --per-class 330   # ~1.5 GB of Kepler photometry from MAST
@@ -90,6 +90,9 @@ All commands:
 .venv/bin/python manage.py benchmark               # blind end-to-end runs on held-out real stars (--per-class N)
 .venv/bin/python manage.py injection_study         # injection and recovery against S/N (--trials N)
 .venv/bin/python manage.py autopilot               # one automation cycle (--loop to keep going)
+.venv/bin/python manage.py survey                  # blind runs on every star on disk; lists signals NASA does not have
+.venv/bin/python manage.py variable_study          # planets injected into variable stars (--seed N, --no-injection)
+.venv/bin/python manage.py train_signal_check      # the parameters-only model behind the Signal check page
 .venv/bin/python manage.py verify                  # PRD §6 criteria + physics, golden targets, injections
 .venv/bin/python manage.py reset_runs --yes        # clear runs, logs and archives
 .venv/bin/python -m pytest                         # 34 tests; set CTE_TEST_DATABASE_URL to run them on PostgreSQL
@@ -181,10 +184,23 @@ optional input did to the answer, and the size and orbit the numbers imply.
 - **JSON.** `GET /check/score.json?period_days=…&depth_ppm=…&duration_hours=…`
 - It is a first look. It has seen Kepler signals only, and the full analysis of the light curve is more accurate.
 
-## Getting the trained model
+## The trained model
 
-The trained model files are not in this repository. To request them, open an issue. Everything needed to train
-your own is here: `build_kepler_dataset`, `train_model`, `train_signal_check` (see the [paper](docs/paper.md)).
+The model the results below were measured with is in [`models/`](models/) (27 MB). `./run.sh` installs it on first
+start, so a fresh clone classifies with the full model straight away, with nothing to download or train. To train
+your own instead: `build_kepler_dataset`, `train_model`, `train_signal_check` (see the [paper](docs/paper.md)).
+
+## Looking for planets NASA does not list
+
+```bash
+.venv/bin/python manage.py survey --workers 4      # every Kepler star on disk; resumes where it stopped
+```
+
+Runs the whole pipeline blind on each star, classifies every signal it finds, and compares each with what NASA lists
+for that star (the pipeline's Threshold Crossing Events and the current Objects of Interest, at the same period or a
+simple multiple). What is left goes to `data/survey_unlisted.csv`, strongest planet verdicts first. It is a list for
+a person to inspect, not a list of planets. The data on disk covers 7,496 of the roughly 200,000 stars Kepler
+observed; `build_kepler_dataset --per-class N` downloads more.
 
 ## Real data
 
@@ -396,3 +412,7 @@ residuals are white) and `remove_periodic_variability` (divide out a non-transit
   planets b–g from campaign 12 when searched with shorter duty cycles (q from 0.004) than the PRD default, because
   its transits last under an hour.
 - **TRAPPIST-1 e.** Its radius benchmark is analytic (archive depth → engine radius); WASP-12 b is also run end to end from TESS photometry.
+
+## Licence
+
+[MIT](LICENSE). Use it, change it, build on it; keep the copyright notice.
