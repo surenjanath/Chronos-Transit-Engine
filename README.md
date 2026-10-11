@@ -92,6 +92,7 @@ All commands:
 .venv/bin/python manage.py autopilot               # one automation cycle (--loop to keep going)
 .venv/bin/python manage.py survey                  # blind runs on every star on disk; lists signals NASA does not have
 .venv/bin/python manage.py variable_study          # planets injected into variable stars (--seed N, --no-injection)
+.venv/bin/python manage.py isolate_signal RUN PERIOD # rerun a star with its other transits removed, so a further signal gets the full analysis
 .venv/bin/python manage.py train_signal_check      # the parameters-only model behind the Signal check page
 .venv/bin/python manage.py verify                  # PRD §6 criteria + physics, golden targets, injections
 .venv/bin/python manage.py reset_runs --yes        # clear runs, logs and archives
