@@ -313,6 +313,11 @@ def test_map_places_real_positions_only(client, tmp_path, monkeypatch):
     by_planet = client.get(reverse("map"), {"focus": data["systems"][0]["planets"][0]["name"]}).context["ctx"]   # a planet's name opens its system
     assert by_planet["focus"] == "Near" and by_planet["focus_name"] == data["systems"][0]["planets"][0]["name"]
     assert client.get(reverse("map"), {"focus": "No such world"}).context["ctx"]["focus"] == ""
+    assert 'data-view="3d"' in html and "js/map3d.js" in html and "js/globe.js" in html                # the 3D view and the planet globes
+    linked = client.get(reverse("map"), {"view": "3d", "type": "Gas giant", "method": "Transit"}).context["ctx"]  # "more planets like this"
+    assert (linked["view"], linked["kind"], linked["method"]) == ("3d", "Gas giant", "Transit")
+    odd = client.get(reverse("map"), {"view": "4d", "type": "Rogue", "method": "Guesswork"}).context["ctx"]
+    assert (odd["view"], odd["kind"], odd["method"]) == ("", "", "")
     galaxy._cache.clear()
 
 

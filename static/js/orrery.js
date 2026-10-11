@@ -23,13 +23,14 @@
     el.innerHTML=`<canvas></canvas>
       <div class="or-top"><label class="or-check"><input type="checkbox" data-k="hz"><span>Habitable zone</span></label></div>
       <div class="or-you">${data.distance_ly?`You are<b>${fmt(data.distance_ly,data.distance_ly<100?1:0)} light-years</b>from Earth`:''}</div>
-      <div class="or-title"><h3>${data.host}</h3><p>${data.headline}</p></div>
+      <div class="or-title"><h3><span class="or-name">${data.host}</span> <a class="or-learn" target="_blank" rel="noopener" hidden>Learn more +</a></h3><p>${data.headline}</p></div>
       <div class="or-side"><div class="or-view-h"><span>View</span></div>
         <div class="or-tabs"><button type="button" data-view="planet">Planet</button><button type="button" data-view="system" class="on">System</button><button type="button" data-view="star">Star</button></div>
-        <button type="button" class="or-compare" data-k="sol">Compare to our Solar System</button></div>
+        <button type="button" class="or-compare" data-k="sol">Compare to our Solar System</button>
+        <label class="or-size"><span>Compare size</span><select aria-label="Compare size with"><option value="">this planet alone</option><option value="Earth">with Earth</option><option value="Neptune">with Neptune</option><option value="Jupiter">with Jupiter</option></select></label></div>
       <div class="or-info"></div>
       <div class="or-bar"><span class="or-rate-l">Rate</span><input type="range" min="-2" max="2" step="0.01" value="0" aria-label="Time passing per second"><span class="or-rate-n"></span>
-        <button type="button" data-k="pause">Pause</button></div>`;
+        <button type="button" data-k="pause">Pause</button><span class="or-more"></span></div>`;
     const cv=el.querySelector('canvas'), g=cv.getContext('2d'), info=el.querySelector('.or-info'), rateN=el.querySelector('.or-rate-n');
     let W=0,H=0, playing=!still;
     // a fixed starfield, the same on every draw
@@ -74,18 +75,36 @@
     function row(items,colourOf){ const big=Math.max(...items.map(i=>i[1])), maxR=Math.min(H*0.2,W*0.11), px=v=>v/big*maxR, gap=Math.min(46,W*0.04);
       const total=items.reduce((s,i)=>s+2*Math.max(px(i[1]),18),0)+gap*(items.length-1); let x=(wide()?W-330:W-total>0?W:W)/2-total/2; const y=wide()?(H-54)*0.42:H*0.28;
       for(const it of items){ const r=px(it[1]), half=Math.max(r,18); x+=half; disc(x,y,r,colourOf(it),it[0],it[2]); x+=half+gap; } }
-    function drawPlanet(){ const p=planets[sel], r=p.radius_earth;
-      if(!r){ g.fillStyle=C.mute; g.font='14px '+getComputedStyle(document.body).fontFamily; g.textAlign='center'; g.textBaseline='middle'; g.fillText('The size of '+p.name+' has not been measured'+(p.mass_earth?': its mass is '+fmt(p.mass_earth,p.mass_earth<10?2:0)+' × Earth.':'.'),(wide()?W-330:W)/2,wide()?(H-54)*0.42:H*0.28); return; }
-      const items=[['Earth',1,'1.00 R⊕'],[p.name,r,fmt(r,2)+' R⊕']]; if(r>3) items.push(['Jupiter',11.21,'11.2 R⊕']); else items.push(['Neptune',3.88,'3.88 R⊕']);
-      items.sort((a,b)=>a[1]-b[1]); row(items,it=>it[0]===p.name?planetColour(p):it[0]==='Earth'?'#6f9fd8':it[0]==='Neptune'?'#7f9fe0':'#d9b38c'); }
+    // the planet as a globe: an artist's impression from its size class and temperature, alone or beside a known world
+    const REF={Earth:[1,'Terrestrial',255,'earth'],Neptune:[3.88,'Neptune-like',60],Jupiter:[11.21,'Gas giant',125]};
+    const globes=new Map(); let compare='';
+    const globeOf=(key,kind,temp,seed,force)=>{ if(!globes.has(key)){ const l=force?Object.assign({key:force},CTEGlobe.LOOKS[force]):CTEGlobe.look(kind,temp); globes.set(key,CTEGlobe.make(l,seed)); } return globes.get(key); };
+    const lookOf=p=>CTEGlobe.look(p.kind,p.temp_k);
+    function drawPlanet(ts){ const p=planets[sel], turn=(ts||0)/1000*0.012, gl=globeOf('p'+sel,p.kind,p.temp_k,sel*17+data.host.length), area=wide()?W-330:W, top=wide()?(H-54):H*0.5;
+      if(!compare||!p.radius_earth){ const r=wide()?top*0.6:Math.min(area*0.36,top*0.42); gl.draw(g,area*(wide()?0.56:0.5),wide()?top*0.6:top*0.46,r,turn); return; }
+      const ref=REF[compare], other=globeOf('ref'+compare,ref[1],ref[2],compare.length*31,ref[3]), big=Math.max(ref[0],p.radius_earth), maxR=Math.min(top*0.34,area*0.2), gap=maxR*0.5;
+      const ra=Math.max(ref[0]/big*maxR,2), rb=Math.max(p.radius_earth/big*maxR,2), mid=area*(wide()?0.54:0.5), y=wide()?top*0.44:top*0.42, xa=mid-gap/2-ra, xb=mid+gap/2+rb;
+      other.draw(g,xa,y,ra,turn*1.3); gl.draw(g,xb,y,rb,turn);
+      g.textAlign='center'; g.textBaseline='top';
+      [[xa,compare,fmt(ref[0],2)+' R⊕'],[xb,p.name,fmt(p.radius_earth,2)+' R⊕']].forEach(q=>{ g.fillStyle=C.text; g.font='600 13px '+getComputedStyle(document.body).fontFamily; g.fillText(q[1],q[0],y+maxR+14); g.fillStyle=C.mute; g.font='12px '+getComputedStyle(document.body).fontFamily; g.fillText(q[2],q[0],y+maxR+32); }); }
     function drawStar(){ const items=[['The Sun',1,5772],[data.host,star.radius_solar,star.teff]].sort((a,b)=>a[1]-b[1]);
       const big=items[1][1], maxR=Math.min((wide()?(H-54):H*0.5)*0.26,(wide()?W-330:W)*0.15), gap=maxR*1.1, r0=items[0][1]/big*maxR, r1=maxR;
       const mid=(wide()?W-330:W)/2+(wide()?40:0), y=wide()?(H-54)*0.44:H*0.26, xs=[mid-gap/2-r0,mid+gap/2+r1];
       items.forEach((it,k)=>{ const r=k?r1:r0; glow(xs[k],y,r,starColour(it[2])); g.fillStyle=C.text; g.font='600 13px '+getComputedStyle(document.body).fontFamily; g.textAlign='center'; g.textBaseline='top'; g.fillText(it[0],xs[k],y+maxR*1.5+14);
         g.fillStyle=C.mute; g.font='12px '+getComputedStyle(document.body).fontFamily; g.fillText(fmt(it[2],0)+' K · '+fmt(it[1],2)+' R☉',xs[k],y+maxR*1.5+32); }); }
+    const nameEl=el.querySelector('.or-name'), subEl=el.querySelector('.or-title p'), learn=el.querySelector('.or-learn'), more=el.querySelector('.or-more');
+    // the big caption: the system in the system and star views, the selected planet in the planet view
+    function head(p,lk){
+      if(view!=='planet'||!p){ nameEl.textContent=data.host; subEl.textContent=data.headline; learn.hidden=true; more.innerHTML=''; return; }
+      nameEl.textContent=p.name; subEl.textContent=lk.text+(p.status==='confirmed'?'':' · a candidate, not a confirmed planet');
+      learn.hidden=p.status!=='confirmed'; if(!learn.hidden) learn.href='https://science.nasa.gov/exoplanet-catalog/'+p.name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')+'/';
+      const base=(el.dataset.map||'/map/'), plural={'Gas giant':'Gas giants','Neptune-like':'Neptune-like planets','Super-Earth':'Super-Earths','Terrestrial':'Terrestrial planets'};
+      more.innerHTML='<b>More planets like this:</b>'+(p.kind?`<a href="${base}?view=3d&type=${encodeURIComponent(p.kind)}">${plural[p.kind]}</a>`:'')+(p.method?`<a href="${base}?view=3d&method=${encodeURIComponent(p.method)}">${p.method} discoveries</a>`:'');
+    }
     function facts(){
-      if(view==='star'){ info.innerHTML=`<h4>${data.host}</h4><dl><dt>Type</dt><dd>${star.type?star.type+'-type star':'—'}</dd><dt>Temperature</dt><dd>${star.teff_known===false?'not measured':fmt(star.teff,0)+' K'}</dd><dt>Size</dt><dd>${star.radius_known===false?'not measured':fmt(star.radius_solar,2)+' × the Sun'}</dd><dt>Mass</dt><dd>${star.mass_known===false?'not measured':fmt(star.mass_solar,2)+' × the Sun'}</dd><dt>Brightness</dt><dd>${star.luminosity_solar!=null?fmt(star.luminosity_solar,star.luminosity_solar<0.1?4:2)+' × the Sun':'—'}</dd><dt>Habitable zone</dt><dd>${hz?fmt(hz[0],2)+'–'+fmt(hz[1],2)+' AU':'not known'}</dd></dl>`; return; }
-      const p=planets[sel], inHz=hz&&p.a_au>=hz[0]&&p.a_au<=hz[1], mine=p.status.indexOf('this engine')>=0;
+      if(view==='star'){ head(null); info.innerHTML=`<h4>${data.host}</h4><dl><dt>Type</dt><dd>${star.type?star.type+'-type star':'—'}</dd><dt>Temperature</dt><dd>${star.teff_known===false?'not measured':fmt(star.teff,0)+' K'}</dd><dt>Size</dt><dd>${star.radius_known===false?'not measured':fmt(star.radius_solar,2)+' × the Sun'}</dd><dt>Mass</dt><dd>${star.mass_known===false?'not measured':fmt(star.mass_solar,2)+' × the Sun'}</dd><dt>Brightness</dt><dd>${star.luminosity_solar!=null?fmt(star.luminosity_solar,star.luminosity_solar<0.1?4:2)+' × the Sun':'—'}</dd><dt>Habitable zone</dt><dd>${hz?fmt(hz[0],2)+'–'+fmt(hz[1],2)+' AU':'not known'}</dd></dl>`; return; }
+      const p=planets[sel], inHz=hz&&p.a_au>=hz[0]&&p.a_au<=hz[1], mine=p.status.indexOf('this engine')>=0, lk=lookOf(p);
+      head(p,lk);
       info.innerHTML=`<h4>${p.name}</h4><p class="or-status${mine?' cand':''}">${p.status==='confirmed'?'Confirmed planet':p.status==='NASA candidate'?'Candidate in NASA’s list':'Candidate found by this engine'+(p.p_planet!=null?' · '+fmt(p.p_planet*100,1)+'% planet':'')}</p>
         <dl><dt>Size</dt><dd>${p.radius_earth?fmt(p.radius_earth,2)+' × Earth'+(p.kind?' · '+p.kind:''):'not measured'}</dd>
         <dt>From its star</dt><dd>${fmt(p.a_au,p.a_au<1?4:2)} AU${p.a_derived?' · from its year':''}</dd>
@@ -95,11 +114,13 @@
         ${p.mass_earth?`<dt>Mass</dt><dd>${p.mass_earth>=100?fmt(p.mass_earth/317.83,2)+' × Jupiter':fmt(p.mass_earth,2)+' × Earth'}</dd>`:''}
         ${hz?`<dt>Habitable zone</dt><dd>${inHz?'inside it':p.a_au<hz[0]?fmt(hz[0]/p.a_au,1)+'× too close':fmt(p.a_au/hz[1],1)+'× too far'}</dd>`:''}
         <dt>Position today</dt><dd>${p._known!=null?fmt(p._known*100,0)+'% round since a transit':'not known'}</dd></dl>
+        <p class="or-art">Planet view: an artist\u2019s impression. It is drawn ${lk.why}. No telescope has seen its surface.</p>
         ${planets.length>1?`<div class="or-pick">${planets.map((q,i)=>`<button type="button" data-p="${i}"${i===sel?' class="on"':''}>${q.name.replace(data.host,'').trim()||q.name}</button>`).join('')}</div>`:''}`;
     }
-    function draw(){ backdrop(); if(view==='system'||still) drawSystem(); else if(view==='planet') drawPlanet(); else drawStar(); }
+    let now=0;
+    function draw(){ backdrop(); if(view==='system'||still) drawSystem(); else if(view==='planet') drawPlanet(now); else drawStar(); }
     function size(){ const r=el.getBoundingClientRect(), dpr=window.devicePixelRatio||1; W=Math.max(280,r.width); H=cv.clientHeight||r.height; cv.width=W*dpr; cv.height=H*dpr; g.setTransform(dpr,0,0,dpr,0,0); if(still) zoom=null; draw(); }
-    function frame(ts){ if(el._orrery!==token) return; if(last!=null&&playing) clock+=(ts-last)/1000*rate; last=ts; draw(); requestAnimationFrame(frame); }
+    function frame(ts){ if(el._orrery!==token) return; if(last!=null&&playing) clock+=(ts-last)/1000*rate; last=ts; now=ts; draw(); requestAnimationFrame(frame); }
     const pace=Math.min(...planets.map(p=>p.period_days))/8;   // at the middle of the slider the innermost planet goes round in eight seconds
     const span=t=>t<1/24?fmt(t*1440,0)+' minutes':t<1?fmt(t*24,t*24<10?1:0)+' hours':t<365.25?fmt(t,t<10?1:0)+' days':fmt(t/365.25,t<3652?1:0)+' years';
     const setRate=v=>{ rate=pace*Math.pow(10,v); rateN.innerHTML=`<b>${span(rate)}</b> per second`; };
@@ -115,7 +136,8 @@
         const hit=hits.find(h=>x>=h[0][0]&&x<=h[0][0]+h[0][2]&&y>=h[0][1]&&y<=h[0][1]+h[0][3]); if(hit){ if(hit[1]==='star'){ view='star'; el.dataset.view=view; el.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('on',b.dataset.view==='star')); } else sel=hit[1]; facts(); draw(); } }
     };
     el.querySelector('input[type=range]').addEventListener('input',e=>setRate(+e.target.value));
-    const want=(location.hash.match(/system=([a-z,]+)/)||[])[1]||'';   // #system=planet,hz opens the view in that state
+    el.querySelector('.or-size select').addEventListener('change',e=>{ compare=e.target.value; draw(); });
+    const want=((location.hash+'&'+location.search).match(/system=([a-z,]+)/)||[])[1]||'';   // #system=planet,hz opens the view in that state
     if(/hz/.test(want)){ showHz=true; el.querySelector('[data-k=hz]').checked=true; }
     if(/sol/.test(want)){ showSol=true; const b=el.querySelector('[data-k=sol]'); b.classList.add('on'); b.textContent='Hide our Solar System'; }
     const first=(want.match(/planet|star/)||[])[0]; if(first){ view=first; el.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('on',b.dataset.view===view)); }
@@ -136,7 +158,7 @@
       if(P==null&&a!=null){ P=365.25*Math.sqrt(a*a*a/mass); pd=true; }
       if(a==null||P==null||!(a>0)||!(P>0)){ left.push(q.name); continue; }
       planets.push({name:q.name,status:'confirmed',period_days:P,a_au:a,a_derived:ad,period_derived:pd,radius_earth:q.r,mass_earth:q.m,
-        temp_k:q.T!=null?q.T:(h.teff&&h.rad?Math.round(teff*Math.sqrt(rad*AU_PER_RSUN/(2*a))*Math.pow(0.7,0.25)):null),year:q.year,t0_jd:q.t0,period_err:q.Pe,kind:kind(q.r),
+        method:q.method,temp_k:q.T!=null?q.T:(h.teff&&h.rad?Math.round(teff*Math.sqrt(rad*AU_PER_RSUN/(2*a))*Math.pow(0.7,0.25)):null),year:q.year,t0_jd:q.t0,period_err:q.Pe,kind:kind(q.r),
         focus:focusName!=null&&q.name.toLowerCase().replace(/\s+/g,'')===String(focusName).toLowerCase().replace(/\s+/g,'')});
     }
     planets.sort((x,y)=>x.a_au-y.a_au);

@@ -45,26 +45,31 @@
     const startHash=location.hash;   // read before the first draw rewrites it
     let W=0,H=0, systems=[], byName=new Map(), view='top', sel=null, hover=null, anim=null, raf=0, visible=[];
     const cams={space:{cx:0,cy:0,s:1}, sky:{cx:-180,cy:0,s:1}};
-    const filt={method:'',small:false,temperate:false,naked:false};
+    const filt={method:'',small:false,temperate:false,naked:false,kind:'',facility:''};
+    let three=null;   // the 3D view, laid over this one when chosen
     const cam=()=>view==='sky'?cams.sky:cams.space;
-    const P=h=>view==='top'?[h.x,h.y]:view==='side'?[h.x,h.z]:[-h.ra,h.dec];
+    const P=h=>view==='side'?[h.x,h.z]:view==='sky'?[-h.ra,h.dec]:[h.x,h.y];
     const X=wx=>W/2+(wx-cam().cx)/cam().s, Y=wy=>H/2-(wy-cam().cy)/cam().s;
     const limits=()=>view==='sky'?[0.4/W,400/W]:[0.012*AU/W,170000/W];
     const clampCam=()=>{ const c=cam(),[lo,hi]=limits(); c.s=Math.min(hi,Math.max(lo,c.s));
       if(view==='sky'){ c.cx=Math.min(0,Math.max(-360,c.cx)); c.cy=Math.min(90,Math.max(-90,c.cy)); } };
 
     // ---------- filters ----------
+    // a planet's size class from its radius, or from its mass when only that is measured
+    const kindOf=p=>p.r!=null?(p.r<1.25?'Terrestrial':p.r<2?'Super-Earth':p.r<6?'Neptune-like':'Gas giant'):p.m!=null?(p.m<2?'Terrestrial':p.m<10?'Super-Earth':p.m<50?'Neptune-like':'Gas giant'):'';
+    let topFacilities=[];
     const MAIN=['Transit','Radial Velocity','Microlensing','Imaging'];
     function passes(h){
       if(filt.naked && !(h.vmag!=null && h.vmag<=6)) return false;
-      if(!filt.method && !filt.small && !filt.temperate) return true;
+      if(!filt.method && !filt.small && !filt.temperate && !filt.kind && !filt.facility) return true;
       return h.planets.some(p=>(!filt.method || (filt.method==='other'?!MAIN.includes(p.method):p.method===filt.method))
+        && (!filt.kind || kindOf(p)===filt.kind) && (!filt.facility || (filt.facility==='other'?!topFacilities.includes(p.by):p.by===filt.facility))
         && (!filt.small || (p.r!=null && p.r<1.6)) && (!filt.temperate || (p.S!=null && p.S>=0.25 && p.S<=1.75)));
     }
 
     // ---------- drawing ----------
     function draw(){
-      raf=0;
+      raf=0; if(view==='3d'){ const cnt=document.getElementById('mapCount'); if(cnt) cnt.textContent=systems.length?`${group(systems.filter(h=>h._on).length)} of ${group(systems.length)} systems shown`:''; return; }
       const dpr=window.devicePixelRatio||1; W=el.clientWidth; H=el.clientHeight;
       if(cv.width!==Math.round(W*dpr)||cv.height!==Math.round(H*dpr)){ cv.width=Math.round(W*dpr); cv.height=Math.round(H*dpr); }
       clampCam();
@@ -281,6 +286,7 @@
     document.getElementById('mapSystemToMap')?.addEventListener('click',e=>{ e.preventDefault(); el.scrollIntoView({behavior:'smooth',block:'center'}); });
     function select(h,move,planet){
       sel=h; showPanel(); showSystem(h,planet);
+      if(view==='3d'){ three&&three.focus(h); return; }
       if(h && move){ const p=P(h);
         if(view==='sky') fly(p[0],p[1],Math.min(cam().s,40/W),900);
         else { const span=Math.hypot(p[0],p[1])||1; fly(p[0]/2,p[1]/2,Math.max(span/(0.62*Math.min(W,H)),limits()[0]),1300); } }
@@ -288,7 +294,9 @@
     }
     function setView(v){
       view=v; document.querySelectorAll('#mapViews [data-view]').forEach(b=>b.classList.toggle('on',b.dataset.view===v));
-      document.getElementById('mapPresets').style.visibility=v==='sky'?'hidden':'';
+      document.getElementById('mapPresets').style.visibility=v==='sky'||v==='3d'?'hidden':'';
+      if(three) three.show(v==='3d');
+      if(v==='3d'){ readout.textContent='Every star is at its measured place in space. Drag to turn the view, Shift-drag to slide it, scroll to move in and out; W A S D fly forward, back and sideways, Q and E down and up. Click a star to go to it.'; if(sel&&three) three.focus(sel); }
       cancelAnimationFrame(anim); redraw();
     }
     const PRESET={earth:[0,0,3.2*AU],solar:[0,0,80*AU],voyager:[0,0,420*AU],nearest:[0,0,30],galaxy:[ctx.galactic_centre_ly,0,112000]};
@@ -325,7 +333,7 @@
     cv.addEventListener('pointerup',up); cv.addEventListener('pointercancel',up);
     cv.addEventListener('pointerleave',()=>{ if(hover){ hover=null; redraw(); } tip.hidden=true; });
     cv.addEventListener('dblclick',e=>{ const [x,y]=at(e); zoomAt(x,y,0.4); });
-    el.addEventListener('keydown',e=>{ const c=cam(), k=e.key, d=60*c.s;
+    el.addEventListener('keydown',e=>{ if(view==='3d') return; const c=cam(), k=e.key, d=60*c.s;
       if(k==='+'||k==='=') zoomAt(W/2,H/2,0.6); else if(k==='-'||k==='_') zoomAt(W/2,H/2,1/0.6);
       else if(k==='ArrowLeft') c.cx-=d; else if(k==='ArrowRight') c.cx+=d; else if(k==='ArrowUp') c.cy+=d; else if(k==='ArrowDown') c.cy-=d;
       else if(k==='Escape'){ sel=null; showPanel(); } else return;
@@ -335,7 +343,7 @@
     document.getElementById('mapViews').addEventListener('click',e=>{ const v=e.target.dataset.view; if(v) setView(v); });
     document.getElementById('mapPresets').addEventListener('click',e=>{ const p=e.target.dataset.preset; if(p) preset(p); });
     document.addEventListener('click',e=>{ const b=e.target.closest('[data-fly]'); if(!b) return; const h=byName.get(b.dataset.fly); if(h){ el.scrollIntoView({behavior:'smooth',block:'center'}); select(h,true); } });
-    const applyFilters=()=>{ for(const h of systems) h._on=passes(h); if(sel&&!sel._on){ sel=null; showPanel(); } redraw(); };
+    const applyFilters=()=>{ for(const h of systems) h._on=passes(h); if(sel&&!sel._on){ sel=null; showPanel(); showSystem(null); } if(three) three.refresh(); redraw(); };
     document.getElementById('mapFilters').addEventListener('change',()=>{
       filt.method=document.querySelector('input[name=mapMethod]:checked').value; filt.small=document.getElementById('mapSmall').checked;
       filt.temperate=document.getElementById('mapTemperate').checked; filt.naked=document.getElementById('mapNaked').checked; applyFilters(); });
@@ -349,7 +357,7 @@
       sug.hidden=false; };
     search.addEventListener('input',suggest);
     search.addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); sug.querySelector('button')?.click(); } if(e.key==='Escape') sug.hidden=true; });
-    sug.addEventListener('click',e=>{ const b=e.target.closest('[data-host]'); if(!b) return; const h=byName.get(b.dataset.host); sug.hidden=true; search.value=b.dataset.host; if(h){ if(!h._on){ document.querySelector('input[name=mapMethod][value=""]').checked=true; ['mapSmall','mapTemperate','mapNaked'].forEach(i=>document.getElementById(i).checked=false); Object.assign(filt,{method:'',small:false,temperate:false,naked:false}); applyFilters(); } select(h,true,b.dataset.name); if(sysBox&&!sysBox.hidden) sysBox.scrollIntoView({behavior:'smooth',block:'nearest'}); } });
+    sug.addEventListener('click',e=>{ const b=e.target.closest('[data-host]'); if(!b) return; const h=byName.get(b.dataset.host); sug.hidden=true; search.value=b.dataset.host; if(h){ if(!h._on){ document.querySelector('input[name=mapMethod][value=""]').checked=true; ['mapSmall','mapTemperate','mapNaked'].forEach(i=>document.getElementById(i).checked=false); Object.assign(filt,{method:'',small:false,temperate:false,naked:false,kind:'',facility:''}); applyFilters(); } select(h,true,b.dataset.name); if(sysBox&&!sysBox.hidden) sysBox.scrollIntoView({behavior:'smooth',block:'nearest'}); } });
     document.addEventListener('click',e=>{ if(!e.target.closest('.map-search')) sug.hidden=true; });
     new ResizeObserver(redraw).observe(el);
     new MutationObserver(redraw).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
@@ -367,6 +375,17 @@
         index.push([h.name.toLowerCase().replace(/\s+/g,''),h.name,h]); for(const id of h.ids) index.push([id.toLowerCase().replace(/\s+/g,''),id+' · '+h.name,h]);
         for(const p of h.planets) index.push([p.name.toLowerCase().replace(/\s+/g,''),p.name,h]); }
       loading.hidden=true;
+      const made={}; for(const h of systems) for(const p of h.planets) if(p.by) made[p.by]=(made[p.by]||0)+1;
+      topFacilities=Object.entries(made).sort((a,b)=>b[1]-a[1]).slice(0,8).map(e=>e[0]);
+      const count=test=>systems.reduce((n,h)=>n+h.planets.filter(test).length,0);
+      if(window.CTEMap3D) three=CTEMap3D(el,{systems:()=>systems,mine,gc:ctx.galactic_centre_ly,selected:()=>sel,select:h=>select(h,false),
+        filter:()=>filt,
+        setFilter:(k,v)=>{ filt[k]=v; if(k==='method'){ const r=document.querySelector(`input[name=mapMethod][value="${v}"]`); if(r) r.checked=true; } applyFilters(); },
+        options:k=>k==='kind'?['Terrestrial','Super-Earth','Neptune-like','Gas giant'].map(t=>[t,t,count(p=>kindOf(p)===t)])
+          :k==='facility'?[...topFacilities.map(f=>[f,f.replace(/ \(.*\)$/,''),made[f]]),['other','Other observatories',count(p=>!topFacilities.includes(p.by))]]
+          :[...MAIN.map(m=>[m,m,count(p=>p.method===m)]),['other','Other methods',count(p=>!MAIN.includes(p.method))]]});
+      if(ctx.kind||ctx.method){ filt.kind=ctx.kind||''; filt.method=ctx.method||''; const r=document.querySelector(`input[name=mapMethod][value="${filt.method}"]`); if(r) r.checked=true; applyFilters(); }
+      if(ctx.view==='3d') setView('3d');
       const focus=ctx.focus&&byName.get(ctx.focus);
       if(focus){ showPanel(); select(focus,true,ctx.focus_name); } else if(restore()){ showPanel(); showSystem(sel); redraw(); } else { showPanel(); redraw(); }
     }).catch(()=>{ loading.textContent='The catalogue could not be loaded. The Solar System is still drawn to scale.'; });

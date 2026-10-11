@@ -1,6 +1,6 @@
 {% extends "layout.html" %}
 {% load static cte %}
-{% block head %}<link rel="stylesheet" href="{% static 'css/report.css' %}?v=1"><link rel="stylesheet" href="{% static 'css/orrery.css' %}?v=3">{% endblock %}
+{% block head %}<link rel="stylesheet" href="{% static 'css/report.css' %}?v=1"><link rel="stylesheet" href="{% static 'css/orrery.css' %}?v=7">{% endblock %}
 
 {% block page %}
       <section class="sheet">
@@ -88,7 +88,8 @@
 {% block page_js %}
 <script src="{% static 'js/system.js' %}?v=4"></script>
 <script src="{% static 'js/report.js' %}?v=2"></script>
-<script src="{% static 'js/orrery.js' %}?v=7"></script>
+<script src="{% static 'js/globe.js' %}?v=4"></script>
+<script src="{% static 'js/orrery.js' %}?v=9"></script>
 <script>
 (function(){
   const live=document.getElementById('caseLive'); if(!live) return;

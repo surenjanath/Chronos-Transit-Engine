@@ -1,7 +1,7 @@
 {% extends "layout.html" %}
 {% load static cte %}
 
-{% block head %}<link rel="stylesheet" href="{% static 'css/orrery.css' %}?v=4">{% endblock %}
+{% block head %}<link rel="stylesheet" href="{% static 'css/orrery.css' %}?v=7">{% endblock %}
 
 {% block page %}
       <section class="sheet">
@@ -18,6 +18,7 @@
         <div class="modebar">
           <div class="seg" id="mapViews" role="group" aria-label="Viewpoint">
             <button type="button" data-view="top" class="on" title="Looking down on the plane of the Milky Way">Galaxy from above</button>
+            <button type="button" data-view="3d" title="Fly through the stars: turn, slide and move along all three axes">Galaxy in 3D</button>
             <button type="button" data-view="side" title="Looking along the plane of the Milky Way">Galaxy edge-on</button>
             <button type="button" data-view="sky" title="Where to look in the sky">Sky from Earth</button>
           </div>
@@ -124,7 +125,9 @@
 
 {% block page_js %}
 {{ ctx|json_script:"mapContext" }}
-<script src="{% static 'js/orrery.js' %}?v=7"></script>
-<script src="{% static 'js/map.js' %}?v=8"></script>
+<script src="{% static 'js/globe.js' %}?v=4"></script>
+<script src="{% static 'js/orrery.js' %}?v=9"></script>
+<script src="{% static 'js/map3d.js' %}?v=4"></script>
+<script src="{% static 'js/map.js' %}?v=9"></script>
 <script>CTEMap(document.getElementById('map'), jsonData('mapContext'));</script>
 {% endblock %}

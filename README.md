@@ -215,6 +215,45 @@ centuries-long ones.
 
 ![The Map with a system open](docs/screenshots/map-system.png)
 
+### The planet, as a globe
+
+The **Planet** view shows the selected planet as a lit, slowly turning globe, with its name, what kind of world it is,
+a **Compare size** menu (beside Earth, Neptune or Jupiter, to scale) and links to **more planets like this** on the
+map. The globe is an artist's impression, and the panel says so: nobody has seen these surfaces. It is painted from
+the two things that are known, the planet's size class and its temperature:
+
+| Size class | Temperature | Drawn as |
+|---|---|---|
+| Gas giant | under 150 K | pale banded ammonia clouds, like Jupiter |
+| | 150–350 K | white water clouds |
+| | 350–900 K | cloudless blue |
+| | 900–1,400 K | dark, light absorbed by sodium and potassium vapour |
+| | over 1,400 K | glowing, with clouds of vaporised rock |
+| Neptune-like | under 400 K · 400–1,000 K · over 1,000 K | methane blue · pale green haze · high purple-grey haze |
+| Terrestrial, super-Earth | over 1,300 K · 320–1,300 K · 200–320 K · under 200 K | molten dayside · bare rock · rock under cloud, surface unknown · frozen |
+
+The gas-giant classes follow Sudarsky et al. (2000). A super-Earth is drawn as rock, which is a guess: its make-up is
+not known. **Learn more** opens NASA's catalogue page for a confirmed planet.
+
+![A hot Jupiter](docs/screenshots/planet-view-hot-jupiter.png)
+
+### The Galaxy in 3D
+
+The Map has a fourth view beside "Galaxy from above": **Galaxy in 3D**. Every planetary system is a star at its
+measured position, with the Sun at the origin and three labelled axes: X towards the centre of the Galaxy, Y the way
+the Galaxy turns, Z up out of its plane. Rings mark distances from the Sun.
+
+- **Drag** turns the view; **Shift-drag** slides it; **scroll** moves in and out.
+- **W A S D** fly forward, back and sideways; **Q** and **E** go down and up; the arrow keys turn.
+- **View from**: Space, Above, Edge-on, The Sun.
+- **Filter** by planet type, by the observatory that found it, or by method. The same filters apply to the flat views.
+- **Click a star** to fly to it and open its system. Searching works the same way in 3D.
+
+"You are N light-years from Earth" is the distance of your viewpoint from the Sun. `/map/?view=3d&type=Gas giant`
+opens the view already filtered.
+
+![The Galaxy in 3D](docs/screenshots/map-3d.png)
+
 ![System view](docs/screenshots/system-view.png)
 
 ![With the habitable zone and the inner Solar System](docs/screenshots/system-view-habitable-zone.png)

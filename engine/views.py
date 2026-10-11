@@ -642,6 +642,10 @@ def starmap(request):
         focus = hit["name"] if hit else ""
     ctx = {
         "year": today.year, "focus": focus, "focus_name": asked if focus else "",
+        # a link can open the map already filtered and in 3D: ?view=3d&type=Gas giant&method=Transit
+        "view": "3d" if request.GET.get("view") == "3d" else "",
+        "kind": request.GET.get("type", "") if request.GET.get("type") in ("Terrestrial", "Super-Earth", "Neptune-like", "Gas giant") else "",
+        "method": request.GET.get("method", "") if request.GET.get("method") in ("Transit", "Radial Velocity", "Microlensing", "Imaging", "other") else "",
         "voyager1": {"au": round(voyager_au, 1), "x": vx, "y": vy, "z": vz, "ra": VOYAGER1["ra"], "dec": VOYAGER1["dec"]},
         "radio_ly": today.year - 1906,  # Fessenden's first voice broadcast, December 1906
         "galactic_centre_ly": galaxy.GALACTIC_CENTRE_LY,
@@ -1067,7 +1071,7 @@ def system_view(r: Run, case=None) -> dict | None:
     for q in (host or {}).get("planets", []):
         if q.get("P"):
             planets.append({"name": q["name"], "status": "confirmed", "period_days": q["P"], "a_au": q.get("a") or orbit_au(q["P"]),
-                            "radius_earth": q.get("r"), "mass_earth": q.get("m"), "temp_k": q.get("T"), "year": q.get("year"),
+                            "radius_earth": q.get("r"), "mass_earth": q.get("m"), "temp_k": q.get("T"), "year": q.get("year"), "method": q.get("method"),
                             "t0_jd": q.get("t0"), "period_err": q.get("Pe"), "tilt_deg": q.get("i")})
     for o in archive_match.get("objects") or []:
         status = str(o.get("status", "")).lower()
@@ -1078,7 +1082,8 @@ def system_view(r: Run, case=None) -> dict | None:
     if mine is None and r.prediction == "PLANET_CANDIDATE":
         mine = {"name": f"{(case.host if case else (host or {}).get('name') or r.target.display)} candidate", "status": "candidate found by this engine",
                 "period_days": p["period_days"], "a_au": p["semi_major_axis_au"], "radius_earth": p["radius_earth"], "temp_k": p.get("equilibrium_temp_k"),
-                "t0_jd": res["bls"]["t0"] + BKJD_ZERO if meta.get("time_system") == "bkjd" else None, "p_planet": r.p_planet}
+                "t0_jd": res["bls"]["t0"] + BKJD_ZERO if meta.get("time_system") == "bkjd" else None, "p_planet": r.p_planet,
+                "method": "Transit"}
         planets.append(mine)
     if mine is not None:
         mine["focus"] = True

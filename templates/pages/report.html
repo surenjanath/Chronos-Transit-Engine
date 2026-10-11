@@ -2,7 +2,7 @@
 {% load static cte %}
 {% block title %}{{ star }} · {{ run.period_days|num:4 }} d · Report{% endblock %}
 {% block head %}<script>document.documentElement.setAttribute('data-theme','light')</script>
-<link rel="stylesheet" href="{% static 'css/report.css' %}?v=1"><link rel="stylesheet" href="{% static 'css/orrery.css' %}?v=4">{% endblock %}
+<link rel="stylesheet" href="{% static 'css/report.css' %}?v=1"><link rel="stylesheet" href="{% static 'css/orrery.css' %}?v=7">{% endblock %}
 
 {% block body %}
 {% if not printing %}
@@ -76,5 +76,6 @@
 <script src="{% static 'js/plot.js' %}?v=5"></script>
 <script src="{% static 'js/system.js' %}?v=4"></script>
 <script src="{% static 'js/report.js' %}?v=2"></script>
-<script src="{% static 'js/orrery.js' %}?v=7"></script>
+<script src="{% static 'js/globe.js' %}?v=4"></script>
+<script src="{% static 'js/orrery.js' %}?v=9"></script>
 {% endblock %}
