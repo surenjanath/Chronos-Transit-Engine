@@ -368,6 +368,15 @@ def process(data: ingest.LightCurveData, cfg: dict, log: RunLogger,
                                                        kepid if data.meta.get("mission") == "Kepler" else None)
             except Exception:  # a further signal's verdict is extra evidence; failing to get one must not fail the run
                 a["classification"] = None
+        # The second, closer sweep digs deeper into a variable star and turns up more of the star's own behaviour along
+        # with the planets. What it finds is kept only if the classifier agrees it is a planet.
+        dropped = [a for a in results["additional_signals"] if a.get("closer_look") and (a.get("classification") or {}).get("prediction") != "PLANET_CANDIDATE"]
+        for a in dropped:
+            verdict = (a.get("classification") or {}).get("prediction", "not classified").replace("_", " ").lower()
+            search_trace.append({"period_days": a["period_days"], "snr": a["snr"], "sde": a["sde"], "duration_hours": a["duration_hours"],
+                                 "transits": a["transits"], "rank": 0, "phase_snr": a.get("phase_snr"),
+                                 "outcome": f"found on the closer sweep, but the classifier calls it {verdict} - not reported"})
+        results["additional_signals"] = [a for a in results["additional_signals"] if a not in dropped]
     log.info("Refined analysis complete", "REFINED_ANALYSIS",
              limb_darkened_fit={k: v for k, v in refined.items() if k != "curve"}, additional_signals=results["additional_signals"],
              additional_search=search_trace)

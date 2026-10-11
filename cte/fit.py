@@ -226,7 +226,7 @@ def event_consistency(t, f, period: float, t0: float, duration: float, sigma: fl
     return chi2, float(np.mean(depths < -2.0 * errors))
 
 
-def _is_residue(t, f, res, known_period: float) -> bool:
+def _is_residue(t, f, res, known_period: float, known_is_wave: bool = False) -> bool:
     """Is this peak a leftover of a signal already dealt with, at `known_period`?
 
     Nearly the same period: yes, it is that signal again. At a simple ratio of it: probably - but a planet can sit
@@ -237,7 +237,11 @@ def _is_residue(t, f, res, known_period: float) -> bool:
     """
     ratio = res.period / known_period
     if abs(ratio - 1.0) < 0.03:
-        return True
+        # Two bodies cannot share nearly the same orbit, so next to a transiting signal this is that signal again.
+        # Next to the star's own variability it need not be: a planet may orbit in about the time the star turns.
+        # It counts as separate once the two periods have slipped a full cycle apart over the observations.
+        slipped = abs(res.period - known_period) / known_period * float(t[-1] - t[0]) / known_period
+        return not (known_is_wave and slipped >= 1.0)
     for h in HARMONICS:
         if abs(ratio - h) / h >= 0.0025:
             continue
@@ -299,121 +303,139 @@ def search_additional(time, flat, flux_err, period, t0, t14_days, cfg: dict, sig
     spent, removed_other = 0, 0
     max_other = int(cfg.get("max_variability_removals", 5))
     passes = 0
-    while spent < max_signals and removed_other <= max_other:
-        p_last, t_last, d_last, kind = known[-1]
-        passes += 1
-        if on_pass:
-            what = ("the transit just measured" if passes == 1 and kind == "dip" else
-                    f"the star's own variation at {p_last:.2f} days" if kind == "wave" else f"the signal at {p_last:.2f} days")
-            on_pass(passes, max_signals + max_other, f"Looking for more planets, pass {passes}: took out {what} and searching what is left"
-                    + (f" ({len(found)} more found so far)." if found else "."))
-        x = (time - t_last + 0.5 * p_last) % p_last - 0.5 * p_last
-        if cfg.get("subtract_known_signals", 1):
-            # Fine enough to follow the waveform, but never so fine that a bin holds too few cadences: sparse
-            # bins fit noise and eat into other planets' transits (the dip itself is masked below anyway).
-            nbins = int(min(np.clip(4.0 * p_last / max(d_last, 1e-3), 20, 400), max(20, len(time) // 40)))
-            wave = periodic_variability_model(time, work, p_last, nbins)
-            # A plain transit is fully handled by the mask, and subtracting a flat waveform would only eat into
-            # planets in resonance with this one, whose transits recur at the same few phases. So subtract only
-            # if the signal has structure away from its dip, or is not a dip at all.
-            away = np.abs(x) > 1.5 * d_last
-            per_bin_noise = sigma / np.sqrt(max(len(time) / nbins, 1.0))
-            if kind != "dip" or (away.any() and float(np.ptp(wave[away])) > 6.0 * per_bin_noise):
-                work = work / wave
-        if kind == "dip":
-            keep &= np.abs(x) > 0.9 * d_last
-        if keep.sum() < 500:
-            break
-        t, f = time[keep], work[keep]
-        # Dividing out a waveform can leave the baseline a few percent off 1 on a strongly variable star, and the
-        # search measures dips from 1: put the baseline back before looking.
-        f = f / np.median(f)
-        e = flux_err[keep] if flux_err is not None else None
-        resid_sigma = float(1.4826 * np.median(np.abs(f - np.median(f))))
-        try:
-            top, periods, sr = bls_search(t, f, e, cfg["period_min"], cfg["period_max"], cfg["q_min"], cfg["q_max"], int(cfg["bls_oversample"]))
-        except ValueError:
-            break
-        judged = []
-        for rank, res in enumerate([top] + _other_peaks(t, f, e, cfg, periods, sr, top.period)):
-            x2 = np.abs((t - res.t0 + 0.5 * res.period) % res.period - 0.5 * res.period)
-            inside = x2 < 0.5 * res.duration_days
-            n_in = int(inside.sum())
-            if n_in < 3:
+    closer = False
+    while True:
+        while spent < max_signals and removed_other <= max_other:
+            p_last, t_last, d_last, kind = known[-1]
+            passes += 1
+            if on_pass:
+                what = ("the transit just measured" if passes == 1 and kind == "dip" else
+                        f"the star's own variation at {p_last:.2f} days" if kind == "wave" else f"the signal at {p_last:.2f} days")
+                on_pass(passes, max_signals + max_other, f"Looking for more planets, pass {passes}: took out {what} and searching what is left"
+                        + (f" ({len(found)} more found so far)." if found else "."))
+            x = (time - t_last + 0.5 * p_last) % p_last - 0.5 * p_last
+            if cfg.get("subtract_known_signals", 1):
+                # Fine enough to follow the waveform, but never so fine that a bin holds too few cadences: sparse
+                # bins fit noise and eat into other planets' transits (the dip itself is masked below anyway).
+                nbins = int(min(np.clip(4.0 * p_last / max(d_last, 1e-3), 20, 400), max(20, len(time) // 40)))
+                wave = periodic_variability_model(time, work, p_last, nbins)
+                # A plain transit is fully handled by the mask, and subtracting a flat waveform would only eat into
+                # planets in resonance with this one, whose transits recur at the same few phases. So subtract only
+                # if the signal has structure away from its dip, or is not a dip at all.
+                away = np.abs(x) > 1.5 * d_last
+                per_bin_noise = sigma / np.sqrt(max(len(time) / nbins, 1.0))
+                if kind != "dip" or (away.any() and float(np.ptp(wave[away])) > 6.0 * per_bin_noise):
+                    work = work / wave
+                    if kind == "dip":
+                        # An eclipsing binary: its second eclipse never divides out cleanly, because eclipses vary a
+                        # little from one to the next, and the leftovers swamp the next search. Cut it out as well.
+                        keep &= ~(away & (wave < 1.0 - 6.0 * per_bin_noise))
+            if kind == "dip":
+                keep &= np.abs(x) > 0.9 * d_last
+            if keep.sum() < 500:
+                break
+            t, f = time[keep], work[keep]
+            # Dividing out a waveform can leave the baseline a few percent off 1 on a strongly variable star, and the
+            # search measures dips from 1: put the baseline back before looking.
+            f = f / np.median(f)
+            e = flux_err[keep] if flux_err is not None else None
+            resid_sigma = float(1.4826 * np.median(np.abs(f - np.median(f))))
+            try:
+                top, periods, sr = bls_search(t, f, e, cfg["period_min"], cfg["period_max"], cfg["q_min"], cfg["q_max"], int(cfg["bls_oversample"]))
+            except ValueError:
+                break
+            judged = []
+            for rank, res in enumerate([top] + _other_peaks(t, f, e, cfg, periods, sr, top.period)):
+                x2 = np.abs((t - res.t0 + 0.5 * res.period) % res.period - 0.5 * res.period)
+                inside = x2 < 0.5 * res.duration_days
+                n_in = int(inside.sum())
+                if n_in < 3:
+                    continue
+                depth = float(np.median(f[~inside]) - np.mean(f[inside]))
+                snr = depth / max(resid_sigma, 1e-12) * np.sqrt(n_in)
+                epochs = len(np.unique(np.round((t[inside] - res.t0) / res.period)))
+                step = {"period_days": round(res.period, 5), "snr": round(float(snr), 1), "sde": round(res.sde, 1),
+                        "duration_hours": round(res.duration_days * 24.0, 2), "transits": int(epochs), "rank": rank + 1}
+                # significant against white noise, and against what this star's residual does at other phases
+                red_snr = phase_snr(t, f, res.period, res.t0, res.duration_days) if snr >= 7.1 else 0.0
+                step["phase_snr"] = round(red_snr, 1)
+                chi2, brighter = event_consistency(t, f, res.period, res.t0, res.duration_days, resid_sigma) if snr >= 7.1 else (float("nan"), float("nan"))
+                step["event_chi2"] = None if not np.isfinite(chi2) else round(chi2, 2)
+                step["events_brighter"] = None if not np.isfinite(brighter) else round(brighter, 3)
+                white = snr >= 7.1 and epochs >= 2 and depth > 0
+                significant = white and red_snr >= float(cfg.get("min_phase_snr", 6.0))
+                wiggle = white and red_snr < 5.0  # clearly the star's own behaviour: worth dividing out
+                # A residue of a signal already found sits at an exact period ratio. Real planets in resonant chains
+                # (TRAPPIST-1: 3:2, 5:3, 2:1 ...) are near those ratios but measurably off them, so that test must
+                # be tight. No two bodies share nearly the same period, though, so close to 1:1 it can be loose:
+                # that is the same signal again, drifting in phase or shape (spots, eclipse timing variations).
+                residue = any(_is_residue(t, f, res, p, kind == "wave") for p, _, _, kind in known)
+                # A dip lasting far longer than any transit of this star could at this period is slow stellar
+                # variability that survived detrending, and so is anything a smooth wave describes as well as a box.
+                too_long = res.duration_days > 2.0 * max_transit_duration(res.period, m_star, r_star)
+                wave_like = white and _dip_fraction(t, f, res.period, res.t0, res.duration_days) < 0.4
+                # The periodogram peak of a long-period signal with few transits is never prominent, so a clearly
+                # significant dip (S/N >= 10 over at least three transits) is accepted even when the SDE is modest.
+                prominent = res.sde >= cfg["sde_threshold"] or (snr >= 10.0 and epochs >= 3)
+                # A transit is the same depth every time. Folding a star's irregular variations can pile up a "dip" from a
+                # few deep events while the rest show nothing; the single-event depths then scatter far beyond their errors.
+                # Injected planets on variable stars scatter by a reduced chi-squared of 2 to 13, such pile-ups by 37 to 190.
+                erratic = white and np.isfinite(chi2) and chi2 > float(cfg.get("max_event_chi2", 15.0))
+                step["outcome"] = ("not significant" if not white else
+                                   "no deeper than this star's own wiggles at other phases" if wiggle else
+                                   "not significant" if not significant else
+                                   "residue of a signal already found" if residue else
+                                   "longer than any transit of this star could last" if too_long else
+                                   "smooth variability, not a dip" if wave_like else
+                                   "its events disagree with each other" if erratic else
+                                   "periodogram peak not prominent" if not prominent else "transit-like")
+                judged.append((res, depth, snr, epochs, step))
+            if trace is not None:
+                trace.extend(j[4] for j in judged)
+            if not judged:
+                break
+            good = [j for j in judged if j[4]["outcome"] == "transit-like"]
+            # While the strongest peak is the star's own variability (or a residue), nothing weaker in the same
+            # spectrum can be trusted: a strong wave throws up dip-like beats at many other periods. Remove it first.
+            top_is_other = judged[0][0] is top and judged[0][4]["outcome"] in (
+                "residue of a signal already found", "longer than any transit of this star could last", "smooth variability, not a dip",
+                "no deeper than this star's own wiggles at other phases", "its events disagree with each other")
+            if good and not (top_is_other and removed_other < max_other):
+                res, depth, snr, epochs, step = max(good, key=lambda j: j[2])
+                step["outcome"] = "further transit-like signal"
+                p_fix, t_fix = resolve_alias(t, f, res.period, res.t0, res.duration_days, resid_sigma, cfg["period_min"], float(periods.max()))
+                if p_fix != res.period:
+                    step["outcome"] += f" (found at {res.period:.4f} d, an alias; corrected)"
+                    res.period, res.t0 = p_fix, float(t_fix + np.ceil((t[0] - t_fix) / p_fix) * p_fix)
+                    inside = np.abs((t - res.t0 + 0.5 * res.period) % res.period - 0.5 * res.period) < 0.5 * res.duration_days
+                    if inside.sum() >= 3:
+                        depth = float(np.median(f[~inside]) - np.mean(f[inside]))
+                        snr = depth / max(resid_sigma, 1e-12) * np.sqrt(inside.sum())
+                        epochs = len(np.unique(np.round((t[inside] - res.t0) / res.period)))
+                known.append((res.period, res.t0, res.duration_days, "dip"))
+                spent += 1
+                found.append({"period_days": round(res.period, 6), "t0": round(res.t0, 5), "depth_ppm": round(depth * 1e6, 1),
+                              "duration_hours": round(res.duration_days * 24.0, 3), "snr": round(float(snr), 1), "sde": round(res.sde, 1),
+                              "transits": int(epochs), "period_ratio": round(res.period / period, 4), "phase_snr": step.get("phase_snr"),
+                              "event_chi2": step.get("event_chi2"), "events_brighter": step.get("events_brighter"),
+                              "closer_look": closer})  # found only on the second, closer-detrended sweep
                 continue
-            depth = float(np.median(f[~inside]) - np.mean(f[inside]))
-            snr = depth / max(resid_sigma, 1e-12) * np.sqrt(n_in)
-            epochs = len(np.unique(np.round((t[inside] - res.t0) / res.period)))
-            step = {"period_days": round(res.period, 5), "snr": round(float(snr), 1), "sde": round(res.sde, 1),
-                    "duration_hours": round(res.duration_days * 24.0, 2), "transits": int(epochs), "rank": rank + 1}
-            # significant against white noise, and against what this star's residual does at other phases
-            red_snr = phase_snr(t, f, res.period, res.t0, res.duration_days) if snr >= 7.1 else 0.0
-            step["phase_snr"] = round(red_snr, 1)
-            chi2, brighter = event_consistency(t, f, res.period, res.t0, res.duration_days, resid_sigma) if snr >= 7.1 else (float("nan"), float("nan"))
-            step["event_chi2"] = None if not np.isfinite(chi2) else round(chi2, 2)
-            step["events_brighter"] = None if not np.isfinite(brighter) else round(brighter, 3)
-            white = snr >= 7.1 and epochs >= 2 and depth > 0
-            significant = white and red_snr >= float(cfg.get("min_phase_snr", 6.0))
-            wiggle = white and red_snr < 5.0  # clearly the star's own behaviour: worth dividing out
-            # A residue of a signal already found sits at an exact period ratio. Real planets in resonant chains
-            # (TRAPPIST-1: 3:2, 5:3, 2:1 ...) are near those ratios but measurably off them, so that test must
-            # be tight. No two bodies share nearly the same period, though, so close to 1:1 it can be loose:
-            # that is the same signal again, drifting in phase or shape (spots, eclipse timing variations).
-            residue = any(_is_residue(t, f, res, p) for p, _, _, _ in known)
-            # A dip lasting far longer than any transit of this star could at this period is slow stellar
-            # variability that survived detrending, and so is anything a smooth wave describes as well as a box.
-            too_long = res.duration_days > 2.0 * max_transit_duration(res.period, m_star, r_star)
-            wave_like = white and _dip_fraction(t, f, res.period, res.t0, res.duration_days) < 0.4
-            # The periodogram peak of a long-period signal with few transits is never prominent, so a clearly
-            # significant dip (S/N >= 10 over at least three transits) is accepted even when the SDE is modest.
-            prominent = res.sde >= cfg["sde_threshold"] or (snr >= 10.0 and epochs >= 3)
-            # A transit is the same depth every time. Folding a star's irregular variations can pile up a "dip" from a
-            # few deep events while the rest show nothing; the single-event depths then scatter far beyond their errors.
-            # Injected planets on variable stars scatter by a reduced chi-squared of 2 to 13, such pile-ups by 37 to 190.
-            erratic = white and np.isfinite(chi2) and chi2 > float(cfg.get("max_event_chi2", 15.0))
-            step["outcome"] = ("not significant" if not white else
-                               "no deeper than this star's own wiggles at other phases" if wiggle else
-                               "not significant" if not significant else
-                               "residue of a signal already found" if residue else
-                               "longer than any transit of this star could last" if too_long else
-                               "smooth variability, not a dip" if wave_like else
-                               "its events disagree with each other" if erratic else
-                               "periodogram peak not prominent" if not prominent else "transit-like")
-            judged.append((res, depth, snr, epochs, step))
-        if trace is not None:
-            trace.extend(j[4] for j in judged)
-        if not judged:
+            res, _, _, _, step = judged[0]
+            if judged[0][0] is not top or step["outcome"] in ("not significant", "periodogram peak not prominent"):
+                break  # nothing significant left
+            # the strongest peak is a residue or variability: divide its waveform out and look again
+            known.append((res.period, res.t0, res.duration_days, "wave"))
+            removed_other += 1
+            step["outcome"] += " - removed"
+        # Nothing more on a star that varies: its slower changes, which a 1.5-day filter leaves in, can bury a short
+        # transit under dips many hours long. Follow the curve more closely and look once more.
+        short = min(0.75, 0.5 * float(cfg["detrend_window_days"]))
+        if closer or spent >= max_signals or not (removed_other > 0 or not first_is_dip) or keep.sum() < 500:
             break
-        good = [j for j in judged if j[4]["outcome"] == "transit-like"]
-        # While the strongest peak is the star's own variability (or a residue), nothing weaker in the same
-        # spectrum can be trusted: a strong wave throws up dip-like beats at many other periods. Remove it first.
-        top_is_other = judged[0][0] is top and judged[0][4]["outcome"] in (
-            "residue of a signal already found", "longer than any transit of this star could last", "smooth variability, not a dip",
-            "no deeper than this star's own wiggles at other phases", "its events disagree with each other")
-        if good and not (top_is_other and removed_other < max_other):
-            res, depth, snr, epochs, step = max(good, key=lambda j: j[2])
-            step["outcome"] = "further transit-like signal"
-            p_fix, t_fix = resolve_alias(t, f, res.period, res.t0, res.duration_days, resid_sigma, cfg["period_min"], float(periods.max()))
-            if p_fix != res.period:
-                step["outcome"] += f" (found at {res.period:.4f} d, an alias; corrected)"
-                res.period, res.t0 = p_fix, float(t_fix + np.ceil((t[0] - t_fix) / p_fix) * p_fix)
-                inside = np.abs((t - res.t0 + 0.5 * res.period) % res.period - 0.5 * res.period) < 0.5 * res.duration_days
-                if inside.sum() >= 3:
-                    depth = float(np.median(f[~inside]) - np.mean(f[inside]))
-                    snr = depth / max(resid_sigma, 1e-12) * np.sqrt(inside.sum())
-                    epochs = len(np.unique(np.round((t[inside] - res.t0) / res.period)))
-            known.append((res.period, res.t0, res.duration_days, "dip"))
-            spent += 1
-            found.append({"period_days": round(res.period, 6), "t0": round(res.t0, 5), "depth_ppm": round(depth * 1e6, 1),
-                          "duration_hours": round(res.duration_days * 24.0, 3), "snr": round(float(snr), 1), "sde": round(res.sde, 1),
-                          "transits": int(epochs), "period_ratio": round(res.period / period, 4), "phase_snr": step.get("phase_snr"),
-                          "event_chi2": step.get("event_chi2"), "events_brighter": step.get("events_brighter")})
-            continue
-        res, _, _, _, step = judged[0]
-        if judged[0][0] is not top or step["outcome"] in ("not significant", "periodogram peak not prominent"):
-            break  # nothing significant left
-        # the strongest peak is a residue or variability: divide its waveform out and look again
-        known.append((res.period, res.t0, res.duration_days, "wave"))
-        removed_other += 1
-        step["outcome"] += " - removed"
+        from .conditioning import savgol_detrend
+        work = work / savgol_detrend(time, work, short, int(cfg["detrend_polyorder"]), transit_mask=~keep)[0]
+        closer, removed_other = True, 0
+        if trace is not None:
+            trace.append({"period_days": 0.0, "snr": 0.0, "sde": 0.0, "duration_hours": 0.0, "transits": 0, "rank": 0, "phase_snr": 0.0,
+                          "outcome": f"nothing found; following the star's slower changes more closely ({short:g}-day filter) and searching again"})
     return found
