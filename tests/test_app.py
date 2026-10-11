@@ -307,6 +307,12 @@ def test_map_places_real_positions_only(client, tmp_path, monkeypatch):
     near = data["systems"][0]["planets"][0]                               # what the map needs to place the planet today
     assert near["t0"] == 2455000.5 and near["Pe"] == 3e-6 and data["systems"][1]["planets"][0]["t0"] is None
     assert 160 < page.context["ctx"]["voyager1"]["au"] < 200 and page.context["ctx"]["radio_ly"] > 100
+    html = page.content.decode()                                          # the system view of whichever star is selected or searched for
+    assert 'id="mapSystem"' in html and 'id="mapOrrery"' in html and "js/orrery.js" in html and "css/orrery.css" in html
+    assert html.index('id="mapSystem"') < html.index('class="map-wrap"')
+    by_planet = client.get(reverse("map"), {"focus": data["systems"][0]["planets"][0]["name"]}).context["ctx"]   # a planet's name opens its system
+    assert by_planet["focus"] == "Near" and by_planet["focus_name"] == data["systems"][0]["planets"][0]["name"]
+    assert client.get(reverse("map"), {"focus": "No such world"}).context["ctx"]["focus"] == ""
     galaxy._cache.clear()
 
 

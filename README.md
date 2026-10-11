@@ -208,6 +208,13 @@ lies in the habitable zone.
 A planet is placed where it is today only when its last transit and its period are known well enough to say; otherwise
 the panel says its position is not known. The distance from Earth comes from the NASA Exoplanet Archive.
 
+The **Map** has the same view for every one of the archive's planetary systems: select a star on the map, or find a
+star or planet by name in the search box, and its system opens above the map with the planet you searched for picked
+out. The clock is paced to each system, from hot Jupiters with four-day years to directly imaged giants with
+centuries-long ones.
+
+![The Map with a system open](docs/screenshots/map-system.png)
+
 ![System view](docs/screenshots/system-view.png)
 
 ![With the habitable zone and the inner Solar System](docs/screenshots/system-view-habitable-zone.png)

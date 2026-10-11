@@ -1,6 +1,8 @@
 {% extends "layout.html" %}
 {% load static cte %}
 
+{% block head %}<link rel="stylesheet" href="{% static 'css/orrery.css' %}?v=4">{% endblock %}
+
 {% block page %}
       <section class="sheet">
         <div class="sheet-head">
@@ -33,6 +35,12 @@
             <button type="button" class="text" data-preset="kepler">Kepler’s field</button>
             <button type="button" class="text" data-preset="galaxy">Whole Galaxy</button>
           </span>
+        </div>
+        <div id="mapSystem" hidden style="margin:6px 0 30px">
+          <div class="sheet-head"><h2 class="sheet-title" style="margin-bottom:10px">The system <span class="quiet">· <span id="mapSystemName"></span> · its planets' orbits to scale, how big they are and how far out ·</span></h2>
+            <div class="sheet-tools"><a href="#map" id="mapSystemToMap">Where it is on the map ↓</a><button type="button" class="text" id="mapSystemClose">Close</button></div></div>
+          <div id="mapOrrery"></div>
+          <p class="legend-note" id="mapSystemNote"></p>
         </div>
         <div class="map-wrap">
           <div>
@@ -116,6 +124,7 @@
 
 {% block page_js %}
 {{ ctx|json_script:"mapContext" }}
-<script src="{% static 'js/map.js' %}?v=5"></script>
+<script src="{% static 'js/orrery.js' %}?v=7"></script>
+<script src="{% static 'js/map.js' %}?v=8"></script>
 <script>CTEMap(document.getElementById('map'), jsonData('mapContext'));</script>
 {% endblock %}

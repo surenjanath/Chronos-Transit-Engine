@@ -633,12 +633,15 @@ def starmap(request):
     vl, vb = galaxy.equatorial_to_galactic(VOYAGER1["ra"], VOYAGER1["dec"])
     vx, vy, vz = galaxy.galactic_xyz(vl, vb, voyager_au / galaxy.AU_PER_LY)
     placed, unplaced = _map_targets(catalogue)
-    focus = request.GET.get("focus", "").strip()
+    focus = asked = request.GET.get("focus", "").strip()  # a star or one of its planets, by name
     if focus and catalogue:
         hit = galaxy.locate([focus], catalogue=catalogue)
+        if hit is None:  # a planet's name: find the system that holds it
+            wanted = focus.lower().replace(" ", "")
+            hit = next((h for h in catalogue["systems"] if any(p["name"].lower().replace(" ", "") == wanted for p in h["planets"])), None)
         focus = hit["name"] if hit else ""
     ctx = {
-        "year": today.year, "focus": focus,
+        "year": today.year, "focus": focus, "focus_name": asked if focus else "",
         "voyager1": {"au": round(voyager_au, 1), "x": vx, "y": vy, "z": vz, "ra": VOYAGER1["ra"], "dec": VOYAGER1["dec"]},
         "radio_ly": today.year - 1906,  # Fessenden's first voice broadcast, December 1906
         "galactic_centre_ly": galaxy.GALACTIC_CENTRE_LY,

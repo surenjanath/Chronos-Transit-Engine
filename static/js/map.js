@@ -232,7 +232,8 @@
         <table class="mini"><thead><tr><th>Planet</th><th class="r">Radius</th><th class="r">Period</th><th class="r">Orbit size</th><th class="r" title="Tilt of the orbit to our line of sight: 90° is edge-on, 0° is face-on">Tilt</th></tr></thead><tbody>${rows}</tbody></table>
         ${h.planets.some(p=>p.r!=null)?`<h3 style="font-size:13px;font-weight:500;margin:16px 0 8px">Sizes, to scale</h3><div class="map-discs">${discs}</div>`:''}
         <div class="actions" style="flex-wrap:wrap">
-          <button type="button" class="go sm" data-act="journey">Travel there from Earth</button>
+          <button type="button" class="go sm" data-act="view">See the system</button>
+          <button type="button" class="sm" data-act="journey">Travel there from Earth</button>
           ${h._amax?'<button type="button" class="sm" data-act="system">See its orbits</button>':''}
           ${m?`<a class="sm" href="${esc(m.url)}">Open analysis</a>`:`<a class="sm" href="${esc(ctx.new_url)}?mast_target=${encodeURIComponent(h.name)}&search=1">Analyse this star</a>`}
           <button type="button" class="text" data-act="clear">Clear</button>
@@ -240,7 +241,8 @@
     }
     panel.addEventListener('click',e=>{
       const act=e.target.closest('[data-act]')?.dataset.act; if(!act||!sel) return;
-      if(act==='clear'){ sel=null; showPanel(); redraw(); }
+      if(act==='clear'){ sel=null; showPanel(); showSystem(null); redraw(); }
+      if(act==='view'&&sysBox){ sysBox.scrollIntoView({behavior:'smooth',block:'start'}); }
       if(act==='journey') journey(sel);
       if(act==='system'){ if(view==='sky') setView('top'); const p=P(sel); fly(p[0],p[1],sel._amax*AU*3.2/Math.min(W,H),1600); }
     });
@@ -265,8 +267,20 @@
       const span=Math.hypot(p[0],p[1])||h.d;
       setTimeout(()=>fly(p[0]/2,p[1]/2,span/(0.62*Math.min(W,H)),Math.min(14000,3500+1100*Math.log10(span/AU))),500);
     }
-    function select(h,move){
-      sel=h; showPanel();
+    // the system view under the map: the selected star's planets in motion
+    const sysBox=document.getElementById('mapSystem'), sysView=document.getElementById('mapOrrery'), sysNote=document.getElementById('mapSystemNote'), sysName=document.getElementById('mapSystemName');
+    function showSystem(h,planet){
+      if(!sysBox||!window.CTEOrrery) return;
+      if(!h){ sysBox.hidden=true; if(sysView){ sysView._orrery=(sysView._orrery||0)+1; } return; }
+      const d=CTEOrrery.fromHost(h,planet); sysBox.hidden=false; sysName.textContent=h.name;
+      if(d.empty){ sysView.hidden=true; sysView._orrery=(sysView._orrery||0)+1; sysNote.textContent=`Neither the size of the orbit nor the length of the year has been measured for ${d.left.join(', ')}, so the system cannot be drawn.`; return; }
+      sysView.hidden=false; CTEOrrery(sysView,d);
+      sysNote.textContent='Orbit sizes are to scale with each other; planet discs are enlarged. A planet is placed where it is today only when its last transit and period are known well enough; the panel says which. Orbits are drawn as circles.'+(d.left.length?` Not drawn, because neither its orbit nor its year has been measured: ${d.left.join(', ')}.`:'');
+    }
+    document.getElementById('mapSystemClose')?.addEventListener('click',()=>{ sel=null; showPanel(); showSystem(null); redraw(); });
+    document.getElementById('mapSystemToMap')?.addEventListener('click',e=>{ e.preventDefault(); el.scrollIntoView({behavior:'smooth',block:'center'}); });
+    function select(h,move,planet){
+      sel=h; showPanel(); showSystem(h,planet);
       if(h && move){ const p=P(h);
         if(view==='sky') fly(p[0],p[1],Math.min(cam().s,40/W),900);
         else { const span=Math.hypot(p[0],p[1])||1; fly(p[0]/2,p[1]/2,Math.max(span/(0.62*Math.min(W,H)),limits()[0]),1300); } }
@@ -331,11 +345,11 @@
     const suggest=()=>{ const q=search.value.trim().toLowerCase().replace(/\s+/g,''); if(q.length<2){ sug.hidden=true; return; }
       const hits=[]; for(const it of index){ const i=it[0].indexOf(q); if(i>=0){ hits.push([i,it]); if(hits.length>400) break; } }
       hits.sort((a,b)=>a[0]-b[0]||a[1][1].length-b[1][1].length);
-      sug.innerHTML=hits.slice(0,8).map(x=>`<li><button type="button" data-host="${esc(x[1][2].name)}">${esc(x[1][1])}<span class="sub">${sig(x[1][2].d)} light-years</span></button></li>`).join('')||'<li><span class="quiet" style="padding:7px 14px;display:block;font-size:13px">Nothing by that name in the archive</span></li>';
+      sug.innerHTML=hits.slice(0,8).map(x=>`<li><button type="button" data-host="${esc(x[1][2].name)}" data-name="${esc(x[1][1])}">${esc(x[1][1])}<span class="sub">${sig(x[1][2].d)} light-years</span></button></li>`).join('')||'<li><span class="quiet" style="padding:7px 14px;display:block;font-size:13px">Nothing by that name in the archive</span></li>';
       sug.hidden=false; };
     search.addEventListener('input',suggest);
     search.addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); sug.querySelector('button')?.click(); } if(e.key==='Escape') sug.hidden=true; });
-    sug.addEventListener('click',e=>{ const b=e.target.closest('[data-host]'); if(!b) return; const h=byName.get(b.dataset.host); sug.hidden=true; search.value=b.dataset.host; if(h){ if(!h._on){ document.querySelector('input[name=mapMethod][value=""]').checked=true; ['mapSmall','mapTemperate','mapNaked'].forEach(i=>document.getElementById(i).checked=false); Object.assign(filt,{method:'',small:false,temperate:false,naked:false}); applyFilters(); } select(h,true); } });
+    sug.addEventListener('click',e=>{ const b=e.target.closest('[data-host]'); if(!b) return; const h=byName.get(b.dataset.host); sug.hidden=true; search.value=b.dataset.host; if(h){ if(!h._on){ document.querySelector('input[name=mapMethod][value=""]').checked=true; ['mapSmall','mapTemperate','mapNaked'].forEach(i=>document.getElementById(i).checked=false); Object.assign(filt,{method:'',small:false,temperate:false,naked:false}); applyFilters(); } select(h,true,b.dataset.name); if(sysBox&&!sysBox.hidden) sysBox.scrollIntoView({behavior:'smooth',block:'nearest'}); } });
     document.addEventListener('click',e=>{ if(!e.target.closest('.map-search')) sug.hidden=true; });
     new ResizeObserver(redraw).observe(el);
     new MutationObserver(redraw).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
@@ -354,7 +368,7 @@
         for(const p of h.planets) index.push([p.name.toLowerCase().replace(/\s+/g,''),p.name,h]); }
       loading.hidden=true;
       const focus=ctx.focus&&byName.get(ctx.focus);
-      if(focus){ showPanel(); select(focus,true); } else if(restore()){ showPanel(); redraw(); } else { showPanel(); redraw(); }
+      if(focus){ showPanel(); select(focus,true,ctx.focus_name); } else if(restore()){ showPanel(); showSystem(sel); redraw(); } else { showPanel(); redraw(); }
     }).catch(()=>{ loading.textContent='The catalogue could not be loaded. The Solar System is still drawn to scale.'; });
   };
 })();
