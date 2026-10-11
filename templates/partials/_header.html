@@ -2,6 +2,10 @@
     <nav class="nav primary" id="mainNav" aria-label="Sections">
       {% for item in nav %}<a href="{{ item.url }}"{% if item.key == page %} class="active" aria-current="page"{% endif %}>{{ item.label }}</a>
       {% endfor %}
+      <details class="nav-more" id="navMore">
+        <summary{% if nav_more_label %} class="active"{% endif %}>{% if nav_more_label %}{{ nav_more_label }}{% else %}More{% endif %}</summary>
+        <div class="menu">{% for item in nav_more %}<a href="{{ item.url }}"{% if item.key == page %} class="active" aria-current="page"{% endif %}>{{ item.label }}</a>{% endfor %}</div>
+      </details>
     </nav>
     <div class="mast-right">
       <span id="liveStatus"{% if shell.live %} class="busy"{% endif %}>{% if shell.live %}{{ shell.live }} running{% else %}Idle{% endif %}</span>

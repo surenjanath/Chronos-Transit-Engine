@@ -9,6 +9,10 @@
     root.setAttribute('data-theme',next);
     try{ localStorage.setItem('cte-theme',next); }catch(_){}
   });
+  // the More menu closes on a click elsewhere or Escape
+  const more=$('#navMore');
+  if(more){ document.addEventListener('click',e=>{ if(!more.contains(e.target)) more.open=false; });
+    document.addEventListener('keydown',e=>{ if(e.key==='Escape') more.open=false; }); }
   // whole-row links in ledgers
   document.addEventListener('click',e=>{
     const row=e.target.closest('tr[data-href]');
