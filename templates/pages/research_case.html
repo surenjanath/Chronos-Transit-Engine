@@ -72,14 +72,14 @@
         {% for line in summary %}<p style="max-width:78ch;margin:0 0 8px">{{ line }}</p>{% endfor %}
         <div style="height:18px"></div>
         {% include "partials/_analysis.html" %}
-        <div class="actions" style="margin-top:8px"><a class="go sm" href="{% url 'run_report' run.id %}">Generate report</a> <a class="sm" href="{% url 'run_report_pdf' run.id %}">Download the PDF</a></div>
+        <div class="actions" style="margin-top:8px"><a class="go sm" href="{% url 'run_report' run.id %}">Generate report</a> <a class="sm" href="{% url 'run_report_pdf' run.id %}">Download the PDF</a> <a class="sm" href="{% url 'run_packet' run.id %}" title="Summary, folded light curve and transit times, for other tools">Data packet</a></div>
       </section>
       {% endif %}
 {% endblock %}
 
 {% block page_js %}
 <script src="{% static 'js/system.js' %}?v=4"></script>
-<script src="{% static 'js/report.js' %}?v=1"></script>
+<script src="{% static 'js/report.js' %}?v=2"></script>
 <script>
 (function(){
   const live=document.getElementById('caseLive'); if(!live) return;

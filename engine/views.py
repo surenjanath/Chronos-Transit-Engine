@@ -912,6 +912,32 @@ def _checks(res: dict) -> list[dict]:
     return out
 
 
+SCENARIOS = {  # TRICERATOPS' scenario codes, in words
+    "TP": "Planet on the target star", "EB": "Eclipsing binary: the target itself", "EBx2P": "Eclipsing binary on the target, at twice the period",
+    "PTP": "Planet on the target, which has an unseen bound companion", "PEB": "Eclipsing binary on the target, which has an unseen bound companion",
+    "PEBx2P": "The same, at twice the period", "STP": "Planet on an unseen bound companion star", "SEB": "Eclipsing binary: an unseen bound companion",
+    "SEBx2P": "The same, at twice the period", "DTP": "Planet on the target, with an unseen star in the foreground or background",
+    "DEB": "Eclipsing binary on the target, with an unseen star in the line of sight", "DEBx2P": "The same, at twice the period",
+    "BTP": "Planet on an unseen background star", "BEB": "Eclipsing binary: an unseen background star", "BEBx2P": "The same, at twice the period",
+    "NTP": "Planet on a known nearby star", "NEB": "Eclipsing binary: a known nearby star", "NEBx2P": "The same, at twice the period",
+}
+
+
+def _prob(p: float) -> str:
+    return "below 0.01%" if p < 1e-4 else (f"{p * 100:.2f}%" if p < 0.1 else f"{p * 100:.0f}%")
+
+
+def run_packet(request, pk):
+    r = get_object_or_404(Run.objects.select_related("target"), pk=pk)
+    if r.status != "completed" or not r.results or not (ARCHIVE_DIR / r.id / "lightcurve.parquet").exists():
+        raise Http404("Only a finished run with its archive has a data packet")
+    case = r.research_cases.first()
+    name = "".join(ch if ch.isalnum() else "-" for ch in (case.host if case else r.target.display)).strip("-")
+    response = HttpResponse(research_jobs.packet(r), content_type="application/zip")
+    response["Content-Disposition"] = f'attachment; filename="{name}-{r.period_days:.4f}d-packet.zip"'
+    return response
+
+
 def _report_context(r: Run) -> dict:
     from cte import model as cnn
     res = r.results
@@ -944,7 +970,16 @@ def _report_context(r: Run) -> dict:
                    + (": " + "; ".join(c["name"].lower() for c in against) + "." if against else "."))
     logs = r.logs.order_by("seq")
     last = logs.last()
-    return {"run": r, "res": res, "star": star, "probs": probs, "checks": checks, "summary": summary, "case": case, "removed": removed,
+    timing, validation = research_jobs.timing(r), research_jobs.validation(r)
+    if validation:
+        for row in validation["scenarios"]:
+            row["label"] = SCENARIOS.get(row["scenario"], row["scenario"])
+            row["planet"] = row["scenario"] in ("TP", "PTP", "DTP")
+        summary.append(f"TRICERATOPS puts the false-positive probability at {_prob(validation['fpp'])} "
+                       f"(from nearby stars alone: {_prob(validation['nfpp'])}): {validation['class']}.")
+    if timing and timing.get("measurable"):
+        summary.append("Transit timing: " + ("a timing wave is detected." if timing["detected"] else "no variations detected."))
+    return {"timing": timing, "validation": validation, "run": r, "res": res, "star": star, "probs": probs, "checks": checks, "summary": summary, "case": case, "removed": removed,
             "objects": objects, "match": match, "has_archive": bool(archive_match), "series": services.run_series(r),
             "n_logs": logs.count(), "last_hash": last.hash if last else "", "metrics": cnn.load_metrics() or {},
             "flags": res.get("flags") or [], "further": res.get("additional_signals") or [],

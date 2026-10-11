@@ -185,3 +185,19 @@ def test_survey_matches_catalogued_periods_and_their_aliases():
     assert match(28.464, listed) is None and match(3.0, []) is None
     assert match(5.9844, [(29.9218, "Kepler-1676 b (CONFIRMED)")]) == "Kepler-1676 b (CONFIRMED) at 1/5 of its period"
     assert match(6.05, [(29.9218, "Kepler-1676 b (CONFIRMED)")]) is None
+
+
+def test_transit_timing_finds_a_wave_and_only_a_real_one():
+    from cte import ttv
+    rng = np.random.default_rng(1)
+    t = np.arange(0, 400, 0.0204)
+    period, t0 = 5.0, 2.5
+    n = np.round((t - t0) / period)
+    moved = t0 + n * period + (20 / 1440) * np.sin(2 * np.pi * n / 20)  # each transit up to 20 minutes early or late
+    wavy = ttv.transit_times(t, 1 + ttv.template(t - moved, 0.12, 0.02, 0.003) + rng.normal(0, 0.0004, len(t)), period, t0, 2.88, 0.48, 3000)
+    assert wavy["measurable"] and wavy["detected"] and abs(wavy["wave"]["amplitude_minutes"] - 20) < 3
+    steady = 1 + ttv.template((t - t0 + period / 2) % period - period / 2, 0.12, 0.02, 0.003) + rng.normal(0, 0.0004, len(t))
+    quiet = ttv.transit_times(t, steady, period, t0, 2.88, 0.48, 3000)
+    assert quiet["measurable"] and not quiet["detected"] and quiet["scatter_minutes"] < 6
+    shallow = ttv.transit_times(t, steady, period, t0, 2.88, 0.48, 100)  # the same data read as a 100 ppm signal: not timeable
+    assert not shallow["measurable"] and "too shallow" in shallow["reason"]

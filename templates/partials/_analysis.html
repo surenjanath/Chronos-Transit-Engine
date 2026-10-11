@@ -95,4 +95,49 @@
     <div class="panel"><h3>What the classifier relied on</h3><div id="salLocal"></div><p class="legend-note">How far the planet probability falls when that stretch of the folded curve is flattened.</p></div>
   </div>
 </section>
+{% if timing %}
+<section class="rp-section">
+  <h2 class="sheet-title">Transit timing <span class="quiet">· Does each transit arrive on schedule? ·</span></h2>
+  {% if timing.measurable %}
+  <div class="cols">
+    <div class="panel"><h3>Each transit's arrival against a constant period · minutes early or late</h3><div id="ttvPlot"></div></div>
+    <div>
+      <p style="margin:0 0 10px">{{ timing.reading }}</p>
+      <dl class="kv">
+        <dt>Transits timed</dt><dd>{{ timing.n_timed }}</dd>
+        <dt>Scatter about a constant period</dt><dd>{{ timing.scatter_minutes|num:1 }} min</dd>
+        <dt>Formal error on one transit</dt><dd>{{ timing.median_error_minutes|num:1 }} min</dd>
+        <dt>Best-fitting wave</dt><dd>{{ timing.wave.amplitude_minutes|num:1 }} min every {{ timing.wave.period_days|num:0 }} d</dd>
+        <dt>Chance that wave is noise</dt><dd>{{ timing.wave.false_alarm|pct:1 }}</dd>
+      </dl>
+    </div>
+  </div>
+  {% else %}
+  <p class="flagline">Not measurable for this signal: {{ timing.reason }}. A signal this shallow only appears once all its transits are stacked, so there is no time to read off any single one.</p>
+  {% endif %}
+</section>
+{% endif %}
+
+<section class="rp-section">
+  <h2 class="sheet-title">Statistical validation <span class="quiet">· How likely is it to be something other than a planet? ·</span></h2>
+  {% if validation %}
+  <div class="cols">
+    <div>
+      <div class="figures small" style="margin-bottom:10px">
+        <div><div class="fig-label">False-positive probability</div><div class="fig-value">{{ validation.fpp|times:100|num:2 }} <span class="fig-detail">%</span></div><div class="fig-sub">± {{ validation.fpp_std|times:100|num:2 }} over {{ validation.runs|length }} runs</div></div>
+        <div><div class="fig-label">From known nearby stars</div><div class="fig-value">{{ validation.nfpp|times:100|num:2 }} <span class="fig-detail">%</span></div><div class="fig-sub">± {{ validation.nfpp_std|times:100|num:2 }}</div></div>
+      </div>
+      <p class="flagline{% if validation.class == "not validated" or validation.class == "likely nearby false positive" %} high{% endif %}">By the usual thresholds this is a <b style="font:inherit;font-weight:600">{{ validation.class }}</b>. Validated needs a false-positive probability under 1.5% with under 0.1% from nearby stars; likely planet needs under 50% with under 0.1%.</p>
+      {% if validation.fpp_with_multiplicity != None %}<p class="co">The star already has {{ validation.siblings }} planet{{ validation.siblings|pluralize }} or candidate{{ validation.siblings|pluralize }}. False positives are rarer on such stars by a factor of about {{ validation.multiplicity_factor }} (Lissauer et al. 2012), which would bring the false-positive probability to {{ validation.fpp_with_multiplicity|times:100|num:2 }}%. That adjustment does not change the part owed to nearby stars.</p>{% endif %}
+      <p class="co">{{ validation.tool }} ({{ validation.reference }}), Kepler quarters {{ validation.quarters|join:", " }}, {{ validation.stars_in_field }} catalogued stars in the field, {{ validation.draws_per_scenario|num:0 }} simulated systems per scenario. No high-resolution imaging was used, so unseen close companions are limited only by the light curve's shape.</p>
+    </div>
+    <table class="mini"><thead><tr><th>What could cause the dip</th><th class="r">Probability</th></tr></thead><tbody>
+      {% for s in validation.scenarios|slice:":8" %}<tr><td>{{ s.label }}<span class="sub">{{ s.scenario }}{% if s.planet %} · counts as a planet{% endif %}</span></td><td class="r num">{{ s.probability|times:100|num:2 }}%</td></tr>{% endfor %}
+    </tbody></table>
+  </div>
+  {% else %}
+  <p class="flagline">Not run for this signal. The engine's own tests say which way the evidence points; they do not give the false-positive probability that a validation rests on. TRICERATOPS does: <code>python manage.py validate {{ run.id }}</code>.</p>
+  {% endif %}
+</section>
 {{ series|json_script:"seriesData" }}
+{% if timing.measurable %}{{ timing.transits|json_script:"timingData" }}{% endif %}

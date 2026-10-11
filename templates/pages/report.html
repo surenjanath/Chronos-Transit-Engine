@@ -11,6 +11,7 @@
   <span class="quiet">This is the report as it will print. A4, {{ star }}.</span>
   <span class="rp-bar-actions">
     {% for message in messages %}<span class="tag bad">{{ message }}</span>{% endfor %}
+    <a class="sm" href="{% url 'run_packet' run.id %}" title="Summary, folded light curve and transit times, for other tools">Data packet</a>
     <a class="sm" href="#" onclick="window.print();return false">Print</a>
     <a class="go sm" href="{% url 'run_report_pdf' run.id %}">Download PDF</a>
   </span>
@@ -62,5 +63,5 @@
 <script src="{% static 'vendor/katex/katex.min.js' %}"></script>
 <script src="{% static 'js/plot.js' %}?v=5"></script>
 <script src="{% static 'js/system.js' %}?v=4"></script>
-<script src="{% static 'js/report.js' %}?v=1"></script>
+<script src="{% static 'js/report.js' %}?v=2"></script>
 {% endblock %}

@@ -1,3 +1,4 @@
+import json
 """End-to-end tests through the Django views: a full pipeline run per signal class, plus every page and action."""
 import io
 import os
@@ -347,6 +348,21 @@ def test_report_and_research_pages(client, planet, monkeypatch):
     assert "Summary" in html and "seriesData" in html and "Is it something else?" in html and "Download PDF" in html
     assert "rp-bar" not in client.get(reverse("run_report", args=[planet.id]), {"print": "1"}).content.decode()
     assert "Generate report" in client.get(reverse("run", args=[planet.id])).content.decode()
+    import io, zipfile
+    got = client.get(reverse("run_packet", args=[planet.id]))
+    z = zipfile.ZipFile(io.BytesIO(got.content))
+    info = json.loads(z.read("summary.json"))
+    assert {"README.txt", "summary.json", "folded_transit.csv", "transit_times.csv"} <= set(z.namelist())
+    assert abs(info["ephemeris"]["period_days"] - 3.524748) < 1e-3 and info["provenance"]["run"] == planet.id and info["timing"]["measurable"]
+    rows = z.read("folded_transit.csv").decode().splitlines()
+    assert rows[0] == "time_days,flux,flux_err" and len(rows) > 100 and abs(float(rows[1].split(",")[0])) <= info["folded_transit_window_days"]
+    assert "Transit timing" in html and "Statistical validation" in html and "Not run for this signal" in html
+    monkeypatch.setattr(research, "validation", lambda run: {"fpp": 0.004, "fpp_std": 0.001, "nfpp": 0.0, "nfpp_std": 0.0, "runs": [{}, {}],
+        "class": "validated planet", "scenarios": [{"scenario": "TP", "probability": 0.99}], "fpp_with_multiplicity": None, "tool": "TRICERATOPS",
+        "reference": "x", "quarters": [4], "stars_in_field": 3, "draws_per_scenario": 1000, "siblings": 0, "multiplicity_factor": 0})
+    shown = client.get(reverse("run_report", args=[planet.id])).content.decode()
+    assert "validated planet" in shown and "Planet on the target star" in shown and "false-positive probability at 0.40%" in shown
+    monkeypatch.undo()
     monkeypatch.setattr(research, "browser", lambda: None)  # no browser to print with: back to the report, with the reason
     assert client.get(reverse("run_report_pdf", args=[planet.id])).status_code == 302
 

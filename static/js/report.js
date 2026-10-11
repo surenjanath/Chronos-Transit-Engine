@@ -12,6 +12,10 @@
     series:[{name:'Signal residue',x:d.period,y:d.sr,mode:'line',tone:'ink',width:1.1}]});
   plot('lcPlot',{height:220,xLabel:'Time (days)',yLabel:'Detrended flux',markers:d.transits.length<=40?d.transits.map(x=>({x})):[],
     series:[{name:'Detrended flux',x:d.time,y:d.flux_flat,mode:'points',tone:'ink',size:1.6,alpha:.6}]});
+  const tt=jsonData('timingData');
+  if(tt&&tt.length) plot('ttvPlot',{height:210,xLabel:'Transit number',yLabel:'Minutes',yFmt:y=>y.toFixed(0),xFmt:x=>Number.isInteger(x)?String(x):'',
+    series:[{name:'Observed − expected',x:tt.map(v=>v.epoch),y:tt.map(v=>v.o_minus_c_minutes),mode:'points',tone:'ink',size:4.5},
+            {name:'On time',x:[tt[0].epoch,tt[tt.length-1].epoch],y:[0,0],mode:'line',tone:'gap',width:1.2,dash:true,hover:false}]});
   if(!v) return;
   plot('expPlot',{height:170,yLabel:'Detrended flux',
     series:[{name:'Observed, binned',x:v.x_hours,y:v.observed,mode:'points',tone:'mute',size:5},

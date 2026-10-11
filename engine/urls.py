@@ -19,6 +19,7 @@ urlpatterns = [
     path("runs/<str:pk>/download/<str:name>", views.run_download, name="run_download"),
     path("runs/<str:pk>/report/", views.run_report, name="run_report"),
     path("runs/<str:pk>/report.pdf", views.run_report_pdf, name="run_report_pdf"),
+    path("runs/<str:pk>/packet.zip", views.run_packet, name="run_packet"),
     path("vetting/", views.vetting, name="vetting"),
     path("research/", views.research, name="research"),
     path("research/open/", views.research_open, name="research_open"),

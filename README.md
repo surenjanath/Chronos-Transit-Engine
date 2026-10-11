@@ -93,6 +93,7 @@ All commands:
 .venv/bin/python manage.py survey                  # blind runs on every star on disk; lists signals NASA does not have
 .venv/bin/python manage.py variable_study          # planets injected into variable stars (--seed N, --no-injection)
 .venv/bin/python manage.py isolate_signal RUN PERIOD # rerun a star with its other transits removed, so a further signal gets the full analysis
+.venv/bin/python manage.py validate RUN               # TRICERATOPS false-positive probability for a Kepler run (own environment)
 .venv/bin/python manage.py train_signal_check      # the parameters-only model behind the Signal check page
 .venv/bin/python manage.py verify                  # PRD §6 criteria + physics, golden targets, injections
 .venv/bin/python manage.py reset_runs --yes        # clear runs, logs and archives
@@ -207,6 +208,18 @@ own type and charts; **Download PDF** prints it with a headless Chrome, Chromium
 ![First page of a report](docs/screenshots/report.png)
 
 An example: [the report on the 11.146-day signal on Kepler-783](docs/reports/kepler-783-11.146d.pdf), a candidate signal in none of NASA's tables.
+
+Three more things go with a report:
+
+- **Data packet** (button on the run, the signal page and the report): a zip with `summary.json` (ephemeris, transit
+  parameters, every vetting figure, run and audit hash), `folded_transit.csv` in the form TRICERATOPS and DAVE take,
+  and `transit_times.csv` when single transits can be timed.
+  [Kepler-783's](docs/reports/kepler-783-11.146d-packet.zip) is in the repository.
+- **Transit timing.** Each transit deep enough to stand out on its own is timed and compared with a constant period;
+  a wave in the differences is the pull of another body. Signals too shallow to time say so.
+- **Statistical validation.** `python manage.py validate RUN` runs TRICERATOPS (Giacalone et al. 2021) on the packet
+  and adds the false-positive probability to the report. TRICERATOPS lives in an environment of its own:
+  `python3.11 -m venv data/validation/venv && data/validation/venv/bin/pip install triceratops "setuptools<81"`.
 
 ## Looking for planets NASA does not list
 
