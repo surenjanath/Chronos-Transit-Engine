@@ -171,9 +171,11 @@ def summarise(records: list[dict]) -> dict:
 RATIOS = sorted({float(n) for n in range(2, 9)} | {1.0 / n for n in range(2, 9)} | {2.0 / 3.0, 1.5})
 
 
-def triage(signal: dict, objects: list[dict]) -> list[str]:
-    """Reasons to trust an unlisted signal less. Empty when it passes all of them."""
+def triage(signal: dict, objects: list[dict], main: dict | None = None) -> list[str]:
+    """Reasons to trust an unlisted signal less. Empty when it passes all of them. `main` is the star's strongest signal."""
     notes = []
+    if main is not None and main is not signal and main.get("prediction") == "ECLIPSING_BINARY":
+        notes.append("the strongest signal on this star is classed as an eclipsing binary")
     kinds = {o["koi_disposition"] for o in objects}
     if kinds and not kinds & {"CONFIRMED", "CANDIDATE"}:
         notes.append("the only object NASA lists on this star is a false positive")
@@ -214,7 +216,7 @@ def possible_planets() -> list[dict]:
                 out.append(dict(s, kepid=r["kepid"], host=(names or koi or [f"KIC {r['kepid']}"])[0], signals_on_star=len(r["signals"]),
                                 objects=[{"name": o.get("kepler_name") or o["kepoi_name"], "period_days": float(o["koi_period"]),
                                           "status": o["koi_disposition"]} for o in objects],
-                                notes=triage(s, objects)))
+                                notes=triage(s, objects, r["signals"][0])))
         out.sort(key=lambda s: (bool(s["notes"]), -(s.get("p_planet") or 0.0)))
         _possible.update(stamp=stamp, rows=out, stars=len(surveyed()))
     return _possible["rows"]

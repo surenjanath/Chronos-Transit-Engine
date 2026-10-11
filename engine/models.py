@@ -174,6 +174,7 @@ class ResearchCase(models.Model):
     status = models.CharField(max_length=20, default="queued")  # queued, running, done, failed
     step = models.CharField(max_length=200, blank=True, default="")
     error = models.TextField(blank=True, default="")
+    outcome = models.JSONField(default=dict)  # recovered on its own or not, and what each round of removal found
     base_run = models.ForeignKey(Run, null=True, on_delete=models.SET_NULL, related_name="+")
     run = models.ForeignKey(Run, null=True, on_delete=models.SET_NULL, related_name="research_cases")
     created_at = models.DateTimeField(default=timezone.now)

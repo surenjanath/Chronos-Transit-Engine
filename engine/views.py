@@ -840,7 +840,7 @@ def research(request):
     from cte import survey
     show = request.GET.get("show", "clean")
     rows = survey.possible_planets()
-    cases = {(c.kepid, round(c.period_days, 4)): c for c in ResearchCase.objects.all()}
+    cases = {(c.kepid, round(c.period_days, 4)): c for c in ResearchCase.objects.select_related("run")}
     for r in rows:
         r["case"] = cases.get((r["kepid"], round(r["period_days"], 4)))
     clean = [r for r in rows if not r["notes"]]

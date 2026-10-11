@@ -43,10 +43,28 @@
             <h2 class="sheet-title" style="margin-bottom:8px">Why it is on the list</h2>
             <p class="flagline">It is in none of NASA's Kepler tables for this star: not the Objects of Interest, and not the Q1–Q12, Q1–Q16, DR24 or DR25 detection lists, at this period or at a multiple or fraction of a listed one.</p>
             {% for n in signal.notes %}<p class="flagline high">Against it: {{ n }}.</p>{% empty %}<p class="flagline">Nothing obvious counts against it in the first checks.</p>{% endfor %}
+            {% if case.outcome.star and case.outcome.star.prediction != "PLANET_CANDIDATE" %}<p class="flagline high">Against it: the strongest signal on this star ({{ case.outcome.star.period_days|num:4 }} d, {{ case.outcome.star.depth_ppm|num:0 }} ppm) is classed by the engine as {{ case.outcome.star.prediction|lower_words }}{% if case.outcome.star.flags %}, with flags {{ case.outcome.star.flags|join:", " }}{% endif %}.</p>{% endif %}
             <p class="co">That is where the evidence ends. It is a candidate signal, not a planet: the engine reports a false further signal on about 2 of every 105 stars.</p>
           </div>
         </div>
       </section>
+
+      {% if case.status == "done" and not case.outcome.recovered and case.outcome %}
+      <section class="sheet">
+        <h2 class="sheet-title">Not recovered on its own <span class="quiet">· the survey's {{ signal.p_planet|pct }} does not stand ·</span></h2>
+        <p class="warn-line">{{ case.outcome.reason|capfirst }}.</p>
+        <p style="max-width:78ch">The survey scored this as a further signal, with the rest of the star's signals only masked. Here the star was analysed again with those signals cut out of the data, so that this one would be the strongest thing left and get the full analysis. It was not. {% if case.outcome.seen_as_further %}It was still seen as a further signal behind what is listed below, so it has not gone away, but it could not be isolated and no full analysis of it exists.{% else %}In the last try it was not seen at all.{% endif %} Treat it as unconfirmed by this test.</p>
+        {% if case.outcome.rounds %}
+        <table class="wide" style="margin-top:14px">
+          <thead><tr><th>Try</th><th class="r">Signals removed</th><th class="r">Strongest signal left</th><th class="r">Depth</th><th class="r">S/N</th><th>Engine calls it</th><th class="r"></th></tr></thead>
+          <tbody>
+            {% for r in case.outcome.rounds %}<tr><td>{{ forloop.counter }}</td><td class="r num">{{ r.removed }}</td><td class="r num">{{ r.period_days|num:4 }} d</td><td class="r num">{{ r.depth_ppm|num:0 }} ppm</td><td class="r num">{{ r.snr|num:1 }}</td><td>{{ r.prediction|lower_words }}{% if r.flags %}<span class="sub">{{ r.flags|join:", " }}</span>{% endif %}</td><td class="r"><a class="sm" href="{% url 'run' r.run %}">Open run</a></td></tr>{% endfor %}
+          </tbody>
+        </table>
+        {% endif %}
+        {% if case.base_run %}<p class="co" style="margin-top:12px">The analysis of the whole star is <a href="{% url 'run' case.base_run.id %}" style="text-decoration:underline">run {{ case.base_run.id }}</a>.</p>{% endif %}
+      </section>
+      {% endif %}
 
       {% if case.status == "done" and run %}
       <section class="sheet analysis">

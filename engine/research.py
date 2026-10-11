@@ -41,14 +41,28 @@ def open_case(kepid: int, period: float) -> ResearchCase:
     return case
 
 
+ROUNDS = 4
+
+
 def signals_of(results: dict) -> list[dict]:
-    """Every signal of a finished run, the main one first, as period, epoch and duration."""
-    out = [{"period_days": results["bls"]["period"], "t0": results["bls"]["t0"], "duration_hours": results["fit"]["t14_hours"]}]
-    out += [{"period_days": a["period_days"], "t0": a["t0"], "duration_hours": a["duration_hours"]} for a in results.get("additional_signals", [])]
+    """Every signal of a finished run, the main one first, as period, epoch, duration and depth."""
+    out = [{"period_days": results["bls"]["period"], "t0": results["bls"]["t0"], "duration_hours": results["fit"]["t14_hours"],
+            "depth_ppm": results["parameters"]["transit_depth_ppm"]}]
+    out += [{"period_days": a["period_days"], "t0": a["t0"], "duration_hours": a["duration_hours"], "depth_ppm": a["depth_ppm"]}
+            for a in results.get("additional_signals", [])]
     return out
 
 
+def describe(run: Run) -> dict:
+    """The main signal of a run in a line, for the record of what each round found."""
+    res = run.results
+    return {"run": run.id, "period_days": run.period_days, "depth_ppm": run.depth_ppm, "snr": res["diagnostics"]["snr"],
+            "prediction": run.prediction, "p_planet": run.p_planet, "flags": [f["code"] for f in res.get("flags", [])]}
+
+
 def investigate(case_id: int) -> None:
+    """Run the star, then run it again with everything but this signal cut out. If something else is still stronger,
+    cut that out too and try again; after `ROUNDS` tries the signal is recorded as not recovered on its own."""
     def update(**fields):
         ResearchCase.objects.filter(pk=case_id).update(**fields)
 
@@ -63,23 +77,37 @@ def investigate(case_id: int) -> None:
             base = Run.objects.get(pk=base_id)
             if base.status != "completed":
                 raise RuntimeError(f"the analysis of the star failed: {base.error}")
-        update(base_run_id=base.id)
+        update(base_run_id=base.id, run_id=None, outcome={})
         signals = signals_of(base.results)
+        star = describe(base)
         if not any(same_period(s["period_days"], case.period_days) for s in signals):
-            raise RuntimeError("a fresh analysis of the star did not find this signal again; it found "
-                               + ", ".join(f"{s['period_days']:.4f} d" for s in signals))
-        if same_period(signals[0]["period_days"], case.period_days):
-            update(status="done", step="", run_id=base.id)  # already the main signal of the star
+            update(status="done", step="", outcome={"recovered": False, "star": star, "rounds": [], "seen_as_further": False,
+                                                    "reason": "a fresh analysis of the whole star did not find this signal again"})
             return
-        update(status="running", step="Removing the star's other transits and analysing this signal on its own")
-        others = [s for s in signals if not same_period(s["period_days"], case.period_days)]
-        run_id = services.create_run({"source": "research", "kepid": case.kepid, "remove": others, "focus_period": case.period_days})
-        update(run_id=run_id)
-        services.execute_run(run_id)
-        run = Run.objects.get(pk=run_id)
-        if run.status != "completed":
-            raise RuntimeError(f"the analysis of the signal failed: {run.error}")
-        update(status="done", step="")
+        if same_period(signals[0]["period_days"], case.period_days):
+            update(status="done", step="", run_id=base.id, outcome={"recovered": True, "star": star, "rounds": []})
+            return
+        removed = [s for s in signals if not same_period(s["period_days"], case.period_days)]
+        rounds, seen = [], True
+        for n in range(1, ROUNDS + 1):
+            update(status="running", step=f"Removing {len(removed)} other signal{'s' if len(removed) != 1 else ''} and analysing this one on its own"
+                                          + (f" (try {n})" if n > 1 else ""))
+            run_id = services.create_run({"source": "research", "kepid": case.kepid, "remove": removed, "focus_period": case.period_days})
+            services.execute_run(run_id)
+            run = Run.objects.get(pk=run_id)
+            if run.status != "completed":
+                raise RuntimeError(f"the analysis of the signal failed: {run.error}")
+            found = signals_of(run.results)
+            rounds.append(describe(run) | {"removed": len(removed)})
+            if same_period(found[0]["period_days"], case.period_days):
+                update(status="done", step="", run_id=run.id, outcome={"recovered": True, "star": star, "rounds": rounds})
+                return
+            seen = any(same_period(s["period_days"], case.period_days) for s in found)
+            removed = removed + [s for s in found if not same_period(s["period_days"], case.period_days)]
+            if run.disposition == "NO_SIGNIFICANT_SIGNAL":
+                break  # nothing left above the noise: removing it would not bring this signal out
+        update(status="done", step="", outcome={"recovered": False, "star": star, "rounds": rounds, "seen_as_further": seen,
+                                                "reason": "with the star's other signals removed, this one was not the strongest thing left"})
     except Exception as exc:
         update(status="failed", step="", error=str(exc)[:1000])
 

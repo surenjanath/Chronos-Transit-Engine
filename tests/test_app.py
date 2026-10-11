@@ -363,9 +363,15 @@ def test_report_and_research_pages(client, planet, monkeypatch):
     assert "Waiting for a free worker" in client.get(case_url).content.decode()
     case = research.ResearchCase.objects.get()
     assert client.get(reverse("research_status", args=[case.pk])).json()["status"] == "queued"
-    research.ResearchCase.objects.filter(pk=case.pk).update(status="done", run=planet)
+    research.ResearchCase.objects.filter(pk=case.pk).update(status="done", run=planet, outcome={"recovered": True, "rounds": []})
     done = client.get(case_url).content.decode()
     assert "Analysed on its own" in done and "Generate report" in done
+    lost = {"recovered": False, "reason": "it was not the strongest thing left", "seen_as_further": False,
+            "rounds": [{"run": planet.id, "period_days": 21.1, "depth_ppm": 7000.0, "snr": 900.0, "prediction": "ECLIPSING_BINARY", "flags": ["V_SHAPED"], "removed": 1}]}
+    research.ResearchCase.objects.filter(pk=case.pk).update(run=None, outcome=lost)
+    gone = client.get(case_url).content.decode()
+    assert "Not recovered on its own" in gone and "Analysed on its own" not in gone and "Generate report" not in gone
+    assert "not recovered" in client.get(reverse("research")).content.decode()
 
     d = ingest.make_synthetic(vars(SyntheticSpec(seed=3, period_days=4.0, depth=0.004)), {"t_eff_k": 5778.0, "r_star_solar": 1.0, "m_star_solar": 1.0}, "cut")
     cut = ingest.remove_transits(d, [{"period_days": 4.0, "t0": float(d.truth["t0"]) if d.truth.get("t0") else float(d.time[0]), "duration_hours": 3.0}])
@@ -380,3 +386,5 @@ def test_survey_triage_notes():
     assert any("simple ratio" in n for n in triage(dict(clean, period_days=3.527), planet))
     assert any("disagree" in n for n in triage(dict(clean, event_chi2=14.0), planet))
     assert any("false positive" in n for n in triage(clean, [dict(planet[0], koi_disposition="FALSE POSITIVE")]))
+    assert any("eclipsing binary" in n for n in triage(clean, planet, {"prediction": "ECLIPSING_BINARY"}))
+    assert triage(clean, planet, {"prediction": "PLANET_CANDIDATE"}) == []

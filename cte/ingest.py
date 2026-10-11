@@ -268,11 +268,14 @@ def load_benchmark_star(kepid: int) -> LightCurveData:
 
 def remove_transits(data: LightCurveData, signals: list[dict]) -> LightCurveData:
     """The same light curve with every transit of the given signals cut out (`period_days`, `t0`, `duration_hours`
-    each), half a duration of margin either side. What is left is searched as if those signals were not there."""
+    each), half a duration of margin either side, more for a deep eclipse. What is left is searched as if those signals were not there."""
     keep = np.ones(len(data.time), dtype=bool)
     for s in signals:
         p = float(s["period_days"])
-        keep &= np.abs((data.time - float(s["t0"]) + 0.5 * p) % p - 0.5 * p) > 0.75 * float(s["duration_hours"]) / 24.0 + 0.02
+        days = float(s["duration_hours"]) / 24.0
+        # a deep eclipse has wings well outside its fitted duration, and what is left of them is found as a signal
+        half = 1.5 * days + 0.06 if float(s.get("depth_ppm") or 0.0) > 2000.0 else 0.75 * days + 0.02
+        keep &= np.abs((data.time - float(s["t0"]) + 0.5 * p) % p - 0.5 * p) > half
 
     def cut(a):
         return None if a is None else a[keep]

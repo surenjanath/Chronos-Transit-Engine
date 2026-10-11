@@ -18,7 +18,7 @@
           <span class="quiet">most probable first</span>
         </div>
         <table class="wide">
-          <thead><tr><th>Star</th><th class="r">Period</th><th class="r">Depth</th><th class="r">S/N</th><th class="r">Size if a planet</th><th class="r">P(planet)</th><th>NASA lists on this star</th><th class="r"></th></tr></thead>
+          <thead><tr><th>Star</th><th class="r">Period</th><th class="r">Depth</th><th class="r">S/N</th><th class="r">Size if a planet</th><th class="r" title="As a further signal in the survey, before any closer look">P(planet), survey</th><th>NASA lists on this star</th><th class="r"></th></tr></thead>
           <tbody>
             {% for s in rows %}
             <tr>
@@ -31,7 +31,7 @@
               <td class="r num fit">{{ s.p_planet|pct }}</td>
               <td>{% for o in s.objects %}<span class="sub" style="color:inherit">{{ o.name }} · {{ o.period_days|num:3 }} d · {{ o.status|lower }}</span>{% empty %}<span class="quiet">nothing</span>{% endfor %}</td>
               <td class="r">
-                {% if s.case %}<a class="go sm" href="{% url 'research_case' s.case.pk %}">{% if s.case.status == "done" %}Open{% elif s.case.status == "failed" %}Failed · open{% else %}Running…{% endif %}</a>
+                {% if s.case %}<a class="go sm" href="{% url 'research_case' s.case.pk %}">{% if s.case.status == "done" %}{% if s.case.outcome.recovered and s.case.run %}Open · {{ s.case.run.p_planet|pct }} alone{% else %}Open · not recovered{% endif %}{% elif s.case.status == "failed" %}Failed · open{% else %}Running…{% endif %}</a>
                 {% else %}<form method="post" action="{% url 'research_open' %}" class="inline">{% csrf_token %}<input type="hidden" name="kepid" value="{{ s.kepid }}"><input type="hidden" name="period" value="{{ s.period_days }}"><button class="sm" title="Runs the star in full, then again with its other transits removed: a few minutes">Investigate</button></form>{% endif %}
               </td>
             </tr>
@@ -52,7 +52,7 @@
             <tr><td class="who"><a href="{% url 'research_case' c.pk %}">{{ c.host }}</a><span class="sub">KIC {{ c.kepid }} · {{ c.period_days|num:4 }} d</span></td>
               <td class="r num">{% if c.status == "done" and c.run %}{{ c.run.p_planet|pct }}{% else %}—{% endif %}</td>
               <td class="r num">{% if c.status == "done" and c.run %}{{ c.run.results.diagnostics.snr|num:1 }}{% else %}—{% endif %}</td>
-              <td>{% if c.status == "done" %}Analysed{% elif c.status == "failed" %}<span class="tag bad">Failed</span>{% else %}{{ c.step|default:"Queued" }}{% endif %}</td>
+              <td>{% if c.status == "done" %}{% if c.outcome.recovered %}Recovered on its own{% else %}Not recovered on its own{% endif %}{% elif c.status == "failed" %}<span class="tag bad">Failed</span>{% else %}{{ c.step|default:"Queued" }}{% endif %}</td>
               <td class="r">{% if c.status == "done" and c.run %}<a class="go sm" href="{% url 'run_report' c.run.id %}">Report</a>{% endif %}</td></tr>
             {% endfor %}
           </tbody>
