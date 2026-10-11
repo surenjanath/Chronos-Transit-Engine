@@ -1,6 +1,6 @@
 {% extends "layout.html" %}
 {% load static cte %}
-{% block head %}<link rel="stylesheet" href="{% static 'css/report.css' %}?v=1">{% endblock %}
+{% block head %}<link rel="stylesheet" href="{% static 'css/report.css' %}?v=1"><link rel="stylesheet" href="{% static 'css/orrery.css' %}?v=3">{% endblock %}
 
 {% block page %}
       <section class="sheet">
@@ -67,6 +67,14 @@
       {% endif %}
 
       {% if case.status == "done" and run %}
+      {% if system %}
+      <section class="sheet">
+        <h2 class="sheet-title">The system <span class="quiet">· Orbits to scale · where each planet is, how big, how far ·</span></h2>
+        <div data-orrery="systemData"></div>
+        {{ system|json_script:"systemData" }}
+        <p class="legend-note">Orbit sizes are to scale with each other; the planets' discs are enlarged so they can be seen. Solid orbits are confirmed planets, dashed ones candidates. A planet is placed where it is today only when its last transit and period are known well enough to say; the panel says which. Click a planet or the star for its details.</p>
+      </section>
+      {% endif %}
       <section class="sheet analysis">
         <h2 class="sheet-title">Analysed on its own <span class="quiet">· {% if removed %}{{ removed|length }} other signal{{ removed|length|pluralize }} removed first{% else %}already the strongest signal on the star{% endif %} · run <span class="mono">{{ run.id }}</span> ·</span></h2>
         {% for line in summary %}<p style="max-width:78ch;margin:0 0 8px">{{ line }}</p>{% endfor %}
@@ -80,6 +88,7 @@
 {% block page_js %}
 <script src="{% static 'js/system.js' %}?v=4"></script>
 <script src="{% static 'js/report.js' %}?v=2"></script>
+<script src="{% static 'js/orrery.js' %}?v=4"></script>
 <script>
 (function(){
   const live=document.getElementById('caseLive'); if(!live) return;

@@ -1,0 +1,53 @@
+/* orrery.css — the system view. Always dark: it is a window onto space, whatever the page's theme. */
+.orrery{position:relative;height:630px;background:#05060b;color:#f1f1ee;overflow:hidden;font-size:14px;margin:6px 0 10px}
+.orrery canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+.orrery button{color:inherit;font:inherit;cursor:pointer}
+.or-top{position:absolute;left:26px;top:22px}
+.or-check{display:flex;align-items:center;gap:10px;border:1px solid rgba(255,255,255,.55);padding:9px 14px;cursor:pointer}
+.or-check input{accent-color:#dfe3ee;width:15px;height:15px;margin:0}
+.or-you{position:absolute;left:38px;top:118px;color:#9aa0ad;line-height:1.55;font-size:13.5px}
+.or-you b{display:block;color:#f1f1ee;font-weight:500}
+.or-title{position:absolute;left:28px;bottom:72px;right:360px;pointer-events:none}
+.or-title h3{font-size:30px;font-weight:400;letter-spacing:-.01em;margin:0 0 6px}
+.or-title p{margin:0;font-weight:600;font-size:14.5px;color:#e4e6ec}
+.or-side{position:absolute;right:26px;bottom:72px;width:300px}
+.or-view-h{display:flex;align-items:center;gap:10px;color:#9aa6d8;font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px}
+.or-view-h::before,.or-view-h::after{content:"";flex:1;height:1px;background:rgba(255,255,255,.28)}
+.or-tabs{display:grid;grid-template-columns:repeat(3,1fr)}
+.or-tabs button{background:#1b1d2a;padding:20px 0 16px;color:#aab0c4;font-size:13.5px}
+.or-tabs button::before{content:"";display:block;width:26px;height:26px;margin:0 auto 10px;border-radius:50%;background:#5d6485}
+.or-tabs button[data-view="system"]::before{background:none;border:1.5px solid #8d93b4;box-shadow:inset 0 0 0 7px #1b1d2a,inset 0 0 0 13px #8d93b4}
+.or-tabs button[data-view="star"]::before{background:radial-gradient(circle,#8d93b4 38%,transparent 42%),repeating-conic-gradient(#8d93b4 0 8deg,transparent 8deg 22.5deg)}
+.or-tabs button.on{background:#34407f;color:#fff}
+.or-tabs button.on::before{filter:brightness(1.7)}
+.or-compare{display:block;width:100%;margin-top:10px;background:#1b1d2a;padding:11px 0;font-size:11.5px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:#c9cde0}
+.or-compare.on,.or-compare:hover{background:#34407f;color:#fff}
+.or-info{position:absolute;right:26px;top:22px;width:300px;background:rgba(18,20,30,.82);padding:14px 16px 12px}
+.or-info h4{margin:0 0 2px;font-size:16px;font-weight:500}
+.or-status{margin:0 0 8px;font-size:12.5px;color:#9aa0ad}
+.or-status.cand{color:#f0a27f}
+.or-info dl{display:grid;grid-template-columns:auto 1fr;gap:0 12px;margin:0;font-size:12.5px}
+.or-info dt{color:#9aa0ad;padding:3px 0;border-top:1px solid rgba(255,255,255,.09)}
+.or-info dd{margin:0;text-align:right;padding:3px 0;border-top:1px solid rgba(255,255,255,.09);font-variant-numeric:tabular-nums}
+.or-pick{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.or-pick button{border:1px solid rgba(255,255,255,.3);padding:2px 10px;font-size:12px;color:#c9cde0}
+.or-pick button.on{background:#f1f1ee;color:#05060b;border-color:#f1f1ee}
+.or-bar{position:absolute;left:0;right:0;bottom:0;height:54px;background:#0e111b;display:flex;align-items:center;gap:16px;padding:0 26px}
+.or-rate-l{font-weight:600;font-size:12px;letter-spacing:.08em;text-transform:uppercase}
+.or-bar input[type=range]{flex:1;max-width:520px;accent-color:#f1f1ee;height:4px}
+.or-rate-n{min-width:150px;color:#c9cde0;font-size:13px}
+.or-rate-n b{color:#fff;font-weight:600}
+.or-bar button{margin-left:auto;background:#2a3566;padding:6px 16px;border-radius:999px;font-size:13px}
+.orrery[data-view="planet"] .or-check,.orrery[data-view="star"] .or-check{visibility:hidden}
+.orrery.still{height:300px}
+.orrery.still .or-top,.orrery.still .or-side,.orrery.still .or-bar,.orrery.still .or-info,.orrery.still .or-you{display:none}
+.orrery.still .or-title{display:none}
+@media(max-width:900px){
+  .orrery{height:760px}
+  .or-info{position:absolute;left:14px;right:14px;top:auto;bottom:230px;width:auto}
+  .or-side{left:14px;right:14px;width:auto;bottom:64px}
+  .or-tabs button{padding:10px 0 8px}.or-tabs button::before{display:none}
+  .or-title{left:14px;right:14px;bottom:auto;top:70px}.or-title h3{font-size:22px}
+  .or-you{display:none}.or-top{left:14px;top:14px}
+}
+@media print{.orrery{-webkit-print-color-adjust:exact;print-color-adjust:exact}}

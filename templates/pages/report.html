@@ -2,7 +2,7 @@
 {% load static cte %}
 {% block title %}{{ star }} · {{ run.period_days|num:4 }} d · Report{% endblock %}
 {% block head %}<script>document.documentElement.setAttribute('data-theme','light')</script>
-<link rel="stylesheet" href="{% static 'css/report.css' %}?v=1">{% endblock %}
+<link rel="stylesheet" href="{% static 'css/report.css' %}?v=1"><link rel="stylesheet" href="{% static 'css/orrery.css' %}?v=4">{% endblock %}
 
 {% block body %}
 {% if not printing %}
@@ -27,11 +27,23 @@
   <section class="rp-section rp-summary">
     <h2 class="sheet-title">Summary</h2>
     {% for line in summary %}<p>{{ line }}</p>{% endfor %}
-    <p class="rp-verdict">Engine's verdict: <b>{{ run.prediction|lower_words }}</b>{% if run.disposition == "CONFIRMED_VETTING_QUEUE" %}, above the {{ res.settings.planet_confidence|pct:0 }} bar for human review{% elif run.disposition == "MANUAL_REVIEW" %}, below the {{ res.settings.planet_confidence|pct:0 }} bar and marked for manual review{% endif %}. {% if not match or match.status != "Confirmed" %}This is not a confirmation. A planet is confirmed by follow-up observation or statistical validation, which this report does not contain.{% endif %}</p>
+    <p class="rp-verdict">Engine's verdict: <b>{{ run.prediction|lower_words }}</b>{% if run.disposition == "CONFIRMED_VETTING_QUEUE" %}, above the {{ res.settings.planet_confidence|pct:0 }} bar for human review{% elif run.disposition == "MANUAL_REVIEW" %}, below the {{ res.settings.planet_confidence|pct:0 }} bar and marked for manual review{% endif %}. {% if not match or match.status != "Confirmed" %}This is not a confirmation. A planet is confirmed by follow-up observation or by statistical validation{% if validation %}, and this signal's validation result is "{{ validation.class }}"{% else %}, which this report does not contain{% endif %}.{% endif %}</p>
     {% if case %}
     <p class="co">Found in a blind survey as signal {{ case.signal.rank }} of {{ case.signal.signals_on_star }} on this star, at S/N {{ case.signal.snr|num:1 }} with a planet probability of {{ case.signal.p_planet|pct }}. {% for n in case.signal.notes %}Against it: {{ n }}. {% endfor %}With nothing there, the engine still reports a further signal on about 2 of every 105 stars.</p>
     {% endif %}
   </section>
+
+  {% if system %}
+  <section class="rp-section">
+    <h2 class="sheet-title">The system <span class="quiet">· Orbits to scale ·</span></h2>
+    <div data-orrery="systemData" data-static></div>
+    {{ system|json_script:"systemData" }}
+    <table class="mini" style="margin-top:10px"><thead><tr><th>Body</th><th>Status</th><th class="r">Size</th><th class="r">Distance from the star</th><th class="r">Its year</th><th class="r">Temperature</th></tr></thead><tbody>
+      {% for q in system.planets %}<tr><td>{% if q.focus %}<b style="font-weight:600">{{ q.name }}</b>{% else %}{{ q.name }}{% endif %}</td><td>{{ q.status }}</td><td class="r num">{% if q.radius_earth %}{{ q.radius_earth|num:2 }} R⊕{% else %}—{% endif %}</td><td class="r num">{{ q.a_au|num:4 }} AU</td><td class="r num">{{ q.period_days|num:4 }} d</td><td class="r num">{{ q.temp_k|num:0 }} K</td></tr>{% endfor %}
+    </tbody></table>
+    <p class="co" style="margin-top:8px">{{ system.star.type }}-type star, {{ system.star.luminosity_solar|num:2 }} times the Sun's brightness{% if system.distance_ly %}, {{ system.distance_ly|num:0 }} light-years from Earth{% endif %}. Its habitable zone runs from {{ system.habitable_zone_au.0|num:2 }} to {{ system.habitable_zone_au.1|num:2 }} AU. Solid orbits are confirmed planets, dashed ones candidates; discs are enlarged.</p>
+  </section>
+  {% endif %}
 
   {% include "partials/_analysis.html" %}
 
@@ -64,4 +76,5 @@
 <script src="{% static 'js/plot.js' %}?v=5"></script>
 <script src="{% static 'js/system.js' %}?v=4"></script>
 <script src="{% static 'js/report.js' %}?v=2"></script>
+<script src="{% static 'js/orrery.js' %}?v=4"></script>
 {% endblock %}

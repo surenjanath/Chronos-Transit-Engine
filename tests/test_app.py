@@ -357,6 +357,13 @@ def test_report_and_research_pages(client, planet, monkeypatch):
     rows = z.read("folded_transit.csv").decode().splitlines()
     assert rows[0] == "time_days,flux,flux_err" and len(rows) > 100 and abs(float(rows[1].split(",")[0])) <= info["folded_transit_window_days"]
     assert "Transit timing" in html and "Statistical validation" in html and "Not run for this signal" in html
+    from engine import views
+    system = views.system_view(planet)   # a synthetic star: no catalogue, so the system is the star and this run's own signal
+    assert system["star"]["type"] == "G" and len(system["planets"]) == 1 and system["planets"][0]["focus"]
+    assert system["planets"][0]["status"] == "candidate found by this engine" and abs(system["planets"][0]["period_days"] - 3.524748) < 1e-3
+    assert system["habitable_zone_au"][0] < 1.0 < system["habitable_zone_au"][1] and "1 candidate orbiting a G-type star" in system["headline"]
+    assert 'data-orrery="systemData"' in html and "data-static" in html
+    assert 'data-orrery="systemData"' in client.get(reverse("run", args=[planet.id])).content.decode()
     monkeypatch.setattr(research, "validation", lambda run: {"fpp": 0.004, "fpp_std": 0.001, "nfpp": 0.0, "nfpp_std": 0.0, "runs": [{}, {}],
         "class": "validated planet", "scenarios": [{"scenario": "TP", "probability": 0.99}], "fpp_with_multiplicity": None, "tool": "TRICERATOPS",
         "reference": "x", "quarters": [4], "stars_in_field": 3, "draws_per_scenario": 1000, "siblings": 0, "multiplicity_factor": 0})

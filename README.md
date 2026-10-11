@@ -192,6 +192,26 @@ The model the results below were measured with is in [`models/`](models/) (27 MB
 start, so a fresh clone classifies with the full model straight away, with nothing to download or train. To train
 your own instead: `build_kepler_dataset`, `train_model`, `train_signal_check` (see the [paper](docs/paper.md)).
 
+## The system view
+
+Every finished run, and every investigated signal, opens with a view of the whole planetary system in the manner of
+NASA's Eyes on Exoplanets: the star, each planet's orbit to scale, and the planets moving round at their real relative
+speeds. Confirmed planets are drawn with solid orbits, candidates with dashed ones, and the signal the run is about is
+picked out. The side panel gives the selected body's size, distance from its star, year, temperature and whether it
+lies in the habitable zone.
+
+- **Planet / System / Star** switch between the orbits, the planet beside Earth and Neptune or Jupiter, and the star beside the Sun.
+- **Habitable zone** shades the ring where liquid water could exist (Kopparapu et al. 2013, conservative limits).
+- **Compare to our Solar System** adds the orbits of Mercury, Venus and Earth at the same scale.
+- **Rate** sets how many days pass per second.
+
+A planet is placed where it is today only when its last transit and its period are known well enough to say; otherwise
+the panel says its position is not known. The distance from Earth comes from the NASA Exoplanet Archive.
+
+![System view](docs/screenshots/system-view.png)
+
+![With the habitable zone and the inner Solar System](docs/screenshots/system-view-habitable-zone.png)
+
 ## Research and reports
 
 The **Research** page lists every signal of the survey that is in none of NASA's Kepler tables and that the classifier

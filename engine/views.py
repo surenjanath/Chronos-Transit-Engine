@@ -134,6 +134,7 @@ def run(request, pk):
     return render(request, "pages/run.html", {
         "run": r, "res": res, "probs": probs, "stages": stages, "logs": r.logs.order_by("seq"),
         "page_title": r.target.display, "downloads": ["lightcurve", "periodogram", "folded", "tensors"] if res else [],
+        "system": system_view(r, r.research_cases.first()) if r.status == "completed" else None,
         "place": _place(r.target),
     })
 
@@ -979,7 +980,7 @@ def _report_context(r: Run) -> dict:
                        f"(from nearby stars alone: {_prob(validation['nfpp'])}): {validation['class']}.")
     if timing and timing.get("measurable"):
         summary.append("Transit timing: " + ("a timing wave is detected." if timing["detected"] else "no variations detected."))
-    return {"timing": timing, "validation": validation, "run": r, "res": res, "star": star, "probs": probs, "checks": checks, "summary": summary, "case": case, "removed": removed,
+    return {"system": system_view(r, case), "timing": timing, "validation": validation, "run": r, "res": res, "star": star, "probs": probs, "checks": checks, "summary": summary, "case": case, "removed": removed,
             "objects": objects, "match": match, "has_archive": bool(archive_match), "series": services.run_series(r),
             "n_logs": logs.count(), "last_hash": last.hash if last else "", "metrics": cnn.load_metrics() or {},
             "flags": res.get("flags") or [], "further": res.get("additional_signals") or [],
@@ -1024,3 +1025,78 @@ def research_status(request, pk):
     live = next((r for r in (case.run, case.base_run) if r is not None and r.is_live), None)
     return JsonResponse({"status": case.status, "step": case.step, "error": case.error,
                          "stage": live.stage_label if live else "", "percent": live.percent if live else None})
+
+
+# ---------------------------------------------------------------------------
+# System view: the star, its planets' orbits to scale, and where this run's signal sits among them
+# ---------------------------------------------------------------------------
+
+BKJD_ZERO = 2454833.0
+SPECTRAL = ((30000, "O"), (10000, "B"), (7500, "A"), (6000, "F"), (5200, "G"), (3700, "K"), (0, "M"))
+
+
+def _planet_kind(radius_earth) -> str:
+    """NASA's size classes, from the radius alone."""
+    if not radius_earth:
+        return ""
+    return "Terrestrial" if radius_earth < 1.25 else "Super-Earth" if radius_earth < 2.0 else "Neptune-like" if radius_earth < 6.0 else "Gas giant"
+
+
+def system_view(r: Run, case=None) -> dict | None:
+    """Everything the system view draws: the host star, every planet NASA lists on it, and this run's own signal,
+    with orbit sizes in AU. Planets come from the archive's confirmed list when the host is on the map; candidates
+    and this run's signal are added from the run itself."""
+    res = r.results or {}
+    if not res.get("parameters") or not res.get("stellar"):
+        return None
+    st, p, meta = res["stellar"], res["parameters"], res.get("metadata") or {}
+    mass, radius, teff = st.get("m_star_solar") or 1.0, st.get("r_star_solar") or 1.0, st.get("t_eff_k") or 5772.0
+    archive_match = res.get("archive_match") or {}
+    names = [r.target.name, r.target.alias] + [o["name"] for o in archive_match.get("objects") or []]
+    names += [n.rsplit(" ", 1)[0] for n in names if n and len(n.rsplit(" ", 1)) == 2 and len(n.rsplit(" ", 1)[1]) == 1]  # "Kepler-783 c" -> its host
+    host = galaxy.locate(([case.host] if case else []) + names, r.target.ra, r.target.dec)
+    lum = radius ** 2 * (teff / 5772.0) ** 4
+
+    def orbit_au(period_days):  # Kepler's third law
+        return round((mass * (period_days / 365.25) ** 2) ** (1.0 / 3.0), 5)
+
+    planets = []
+    for q in (host or {}).get("planets", []):
+        if q.get("P"):
+            planets.append({"name": q["name"], "status": "confirmed", "period_days": q["P"], "a_au": q.get("a") or orbit_au(q["P"]),
+                            "radius_earth": q.get("r"), "mass_earth": q.get("m"), "temp_k": q.get("T"), "year": q.get("year"),
+                            "t0_jd": q.get("t0"), "period_err": q.get("Pe"), "tilt_deg": q.get("i")})
+    for o in archive_match.get("objects") or []:
+        status = str(o.get("status", "")).lower()
+        if status in ("confirmed", "candidate") and not any(abs(q["period_days"] / o["period_days"] - 1) < 0.01 for q in planets):
+            planets.append({"name": o["name"], "status": "confirmed" if status == "confirmed" else "NASA candidate", "period_days": o["period_days"],
+                            "a_au": orbit_au(o["period_days"]), "radius_earth": o.get("radius_earth")})
+    mine = next((q for q in planets if abs(q["period_days"] / p["period_days"] - 1) < 0.01), None)
+    if mine is None and r.prediction == "PLANET_CANDIDATE":
+        mine = {"name": f"{(case.host if case else (host or {}).get('name') or r.target.display)} candidate", "status": "candidate found by this engine",
+                "period_days": p["period_days"], "a_au": p["semi_major_axis_au"], "radius_earth": p["radius_earth"], "temp_k": p.get("equilibrium_temp_k"),
+                "t0_jd": res["bls"]["t0"] + BKJD_ZERO if meta.get("time_system") == "bkjd" else None, "p_planet": r.p_planet}
+        planets.append(mine)
+    if mine is not None:
+        mine["focus"] = True
+        mine.setdefault("measured_here", {"period_days": p["period_days"], "radius_earth": p["radius_earth"], "depth_ppm": p["transit_depth_ppm"]})
+    if not planets:
+        return None
+    for q in planets:
+        q["kind"] = _planet_kind(q.get("radius_earth"))
+        if q.get("temp_k") is None:  # equilibrium temperature for the same albedo the run assumes
+            q["temp_k"] = round(teff * (radius * 0.00465047 / (2.0 * q["a_au"])) ** 0.5 * (1.0 - res["settings"]["bond_albedo"]) ** 0.25)
+    planets.sort(key=lambda q: q["a_au"])
+    name = case.host if case else (host["name"] if host else r.target.display)
+    confirmed = sum(q["status"] == "confirmed" for q in planets)
+    others = len(planets) - confirmed
+    letter = next(s for limit, s in SPECTRAL if teff >= limit)
+    distance = host["d"] if host else None
+    line = (f"{confirmed} confirmed planet{'s' if confirmed != 1 else ''}" if confirmed else "")
+    line += (" and " if confirmed and others else "") + (f"{others} candidate{'s' if others != 1 else ''}" if others else "")
+    line += f" orbiting a {letter}-type star" + (f", {distance:,.0f} light-years from Earth." if distance else ".")
+    return {"host": name, "headline": line, "distance_ly": distance,
+            "star": {"teff": teff, "radius_solar": radius, "mass_solar": mass, "luminosity_solar": round(lum, 3), "type": letter},
+            # conservative habitable zone (Kopparapu et al. 2013: runaway greenhouse to maximum greenhouse, as stellar flux)
+            "habitable_zone_au": [round((lum / 1.107) ** 0.5, 4), round((lum / 0.356) ** 0.5, 4)],
+            "planets": planets}
